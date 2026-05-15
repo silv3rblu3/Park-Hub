@@ -1,8 +1,7 @@
 // sw.js
 
-const CACHE_NAME = 'omnihub-v3'; // Bumped version to force the browser to wipe the old cache
+const CACHE_NAME = 'omnihub-v4'; // Bumped to v4 to wipe the old cache
 
-// These are all the files the app needs to function completely offline.
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
@@ -23,37 +22,25 @@ const ASSETS_TO_CACHE = [
     './apps/parts/template.js',
     './apps/parts/app.js',
     
-    // Explicitly cache the icons so Android recognizes it as a true app
+    // Icons
     './assets/icon-192.png',
     './assets/icon-512.png',
 
-    // Cache the external libraries for offline barcode scanning, CSV parsing, and QR label generation
+    // Libraries
     'https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js',
     'https://unpkg.com/html5-qrcode',
     'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js'
 ];
 
-// Install Event: Caches all the files listed above
 self.addEventListener('install', (event) => {
+    self.skipWaiting(); // Force the new service worker to activate immediately
     event.waitUntil(
         caches.open(CACHE_NAME).then((cache) => {
-            console.log('Opened cache');
             return cache.addAll(ASSETS_TO_CACHE);
         })
     );
 });
 
-// Fetch Event: When offline, it serves files from the cache instead of the network
-self.addEventListener('fetch', (event) => {
-    event.respondWith(
-        caches.match(event.request).then((response) => {
-            // Return the cached version if we have it, otherwise go to the network
-            return response || fetch(event.request);
-        })
-    );
-});
-
-// Activate Event: Clears out old caches if you ever update the CACHE_NAME version
 self.addEventListener('activate', (event) => {
     event.waitUntil(
         caches.keys().then((cacheNames) => {
@@ -64,6 +51,26 @@ self.addEventListener('activate', (event) => {
                     }
                 })
             );
+        })
+    );
+});
+
+// UPGRADED FETCH HANDLER: Catches navigation failures on GitHub Pages
+self.addEventListener('fetch', (event) => {
+    event.respondWith(
+        caches.match(event.request).then((response) => {
+            if (response) {
+                return response; // Return exact cached match
+            }
+            
+            // If it's a page navigation request that wasn't perfectly matched, 
+            // forcefully serve the cached index.html
+            if (event.request.mode === 'navigate') {
+                return caches.match('./index.html');
+            }
+            
+            // Otherwise attempt network fetch
+            return fetch(event.request);
         })
     );
 });
