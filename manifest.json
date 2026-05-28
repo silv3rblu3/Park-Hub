@@ -1,38 +1,28 @@
 {
-  "id": "park-management-hub-pwa",
-  "name": "Park Management Hub",
-  "short_name": "PMH",
-  "description": "Unified offline-first management suite.",
-  "start_url": "./index.html",
-  "scope": "./",
-  "display": "standalone",
-  "orientation": "any",
-  "background_color": "#1a1a1a",
-  "theme_color": "#4CAF50",
-  "icons": [
-    {
-      "src": "assets/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "assets/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "maskable"
-    },
-    {
-      "src": "assets/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "assets/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
-    }
-  ]
+"id": "/Park-Hub/",
+"name": "Park Management Hub",
+"short_name": "PMH",
+"description": "Unified offline-first management suite.",
+"start_url": "/Park-Hub/",
+"scope": "/Park-Hub/",
+"display": "standalone",
+"display_override": ["standalone", "window-controls-overlay"],
+"orientation": "any",
+"background_color": "#1a1a1a",
+"theme_color": "#4CAF50",
+
+"icons": [
+{
+"src": "/Park-Hub/assets/icon-192.png",
+"sizes": "192x192",
+"type": "image/png",
+"purpose": "any maskable"
+},
+{
+"src": "/Park-Hub/assets/icon-512.png",
+"sizes": "512x512",
+"type": "image/png",
+"purpose": "any maskable"
+}
+]
 }

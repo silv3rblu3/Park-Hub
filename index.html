@@ -1,26 +1,36 @@
+```html
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
     <title>Park Management Hub</title>
-    
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#2c3e50">
+
+    <!-- PWA -->
+    <link rel="manifest" href="/Park-Hub/manifest.json">
+
+    <meta name="theme-color" content="#4CAF50">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <link rel="apple-touch-icon" href="assets/icon-192.png">
 
+    <link rel="apple-touch-icon" href="/Park-Hub/assets/icon-192.png">
+
+    <!-- Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-    <script src="https://unpkg.com/html5-qrcode"></script>
+
+    <!-- Unified QR Scanner Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
-    <link rel="stylesheet" href="css/global.css">
-    <link rel="stylesheet" href="css/components.css">
+    <!-- Styles -->
+    <link rel="stylesheet" href="/Park-Hub/css/global.css">
+    <link rel="stylesheet" href="/Park-Hub/css/components.css">
 </head>
+
 <body>
 
     <header id="global-header">
@@ -38,6 +48,7 @@
                     <rect x="17" y="17" width="4" height="4" rx="1"></rect>
                 </svg>
             </button>
+
             <h2 id="app-title">PMH Dashboard</h2>
         </div>
 
@@ -54,160 +65,323 @@
 
     <nav id="bento-menu" class="hidden">
         <div class="bento-grid">
+
             <button class="bento-item" data-app="home">
                 <span class="bento-icon">🏠</span>
                 <span class="bento-label">Home</span>
             </button>
+
             <button class="bento-item" data-app="inventory">
                 <span class="bento-icon">📦</span>
                 <span class="bento-label">Inventory</span>
             </button>
+
             <button class="bento-item" data-app="fleet">
                 <span class="bento-icon">🛻</span>
                 <span class="bento-label">Fleet</span>
             </button>
+
             <button class="bento-item" data-app="winterization">
                 <span class="bento-icon">❄️</span>
                 <span class="bento-label">Winter Ops</span>
             </button>
+
             <button class="bento-item" data-app="firstAid">
                 <span class="bento-icon">🩹</span>
                 <span class="bento-label">First Aid</span>
             </button>
+
             <button class="bento-item" data-app="parts">
                 <span class="bento-icon">⚙️</span>
                 <span class="bento-label">Parts</span>
             </button>
+
         </div>
     </nav>
 
     <main id="app-container">
         <div class="home-wrapper" style="padding: 2rem; text-align: center;">
             <h1>Welcome to the Hub</h1>
-            <p style="color: var(--text-secondary);">Select an app from the grid menu to begin.</p>
+
+            <p style="color: var(--text-secondary);">
+                Select an app from the grid menu to begin.
+            </p>
         </div>
     </main>
 
+    <!-- SETTINGS MODAL -->
     <dialog id="settings-modal">
+
         <div class="modal-header">
             <h3>System Settings & Themes</h3>
             <button id="close-settings-btn" class="icon-btn">❌</button>
         </div>
+
         <div class="modal-body">
-            
+
             <section class="settings-section">
+
                 <h4>Theme Manager</h4>
+
                 <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+
                     <select id="global-theme-select" class="app-select" style="flex: 2; margin-bottom: 0;"></select>
-                    <button id="apply-theme-btn" class="btn-primary" style="flex: 1;">Set Active</button>
+
+                    <button id="apply-theme-btn" class="btn-primary" style="flex: 1;">
+                        Set Active
+                    </button>
+
                 </div>
-                
-                <div id="theme-editor-form" style="background: rgba(0,0,0,0.03); padding: 15px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+
+                <div id="theme-editor-form"
+                     style="background: rgba(0,0,0,0.03); padding: 15px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                         <h5 style="margin: 0; font-size: 1rem;">Theme Editor</h5>
-                        <button id="new-theme-btn" class="btn-outline" style="padding: 4px 8px; font-size: 0.8rem;">+ New</button>
-                    </div>
-                    
-                    <input type="hidden" id="theme-edit-id">
-                    <input type="text" id="theme-edit-name" class="app-input" placeholder="Theme Name (e.g., Midnight Forest)">
 
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; font-size: 0.85rem; font-weight: bold;">
-                        <div style="display: flex; justify-content: space-between; align-items: center;"><label>Background</label><input type="color" id="theme-edit-bg"></div>
-                        <div style="display: flex; justify-content: space-between; align-items: center;"><label>Surface (Cards)</label><input type="color" id="theme-edit-surface"></div>
-                        <div style="display: flex; justify-content: space-between; align-items: center;"><label>Text Main</label><input type="color" id="theme-edit-text-main"></div>
-                        <div style="display: flex; justify-content: space-between; align-items: center;"><label>Text Muted</label><input type="color" id="theme-edit-text-muted"></div>
-                        <div style="display: flex; justify-content: space-between; align-items: center;"><label>Primary Button</label><input type="color" id="theme-edit-accent"></div>
-                        <div style="display: flex; justify-content: space-between; align-items: center;"><label>Button Hover</label><input type="color" id="theme-edit-accent-hover"></div>
-                        <div style="display: flex; justify-content: space-between; align-items: center;"><label>Border</label><input type="color" id="theme-edit-border"></div>
-                        <div style="display: flex; justify-content: space-between; align-items: center;"><label>Danger/Error</label><input type="color" id="theme-edit-danger"></div>
+                        <button id="new-theme-btn"
+                                class="btn-outline"
+                                style="padding: 4px 8px; font-size: 0.8rem;">
+                            + New
+                        </button>
+                    </div>
+
+                    <input type="hidden" id="theme-edit-id">
+
+                    <input type="text"
+                           id="theme-edit-name"
+                           class="app-input"
+                           placeholder="Theme Name (e.g., Midnight Forest)">
+
+                    <div style="display: grid;
+                                grid-template-columns: 1fr 1fr;
+                                gap: 10px;
+                                margin-top: 10px;
+                                font-size: 0.85rem;
+                                font-weight: bold;">
+
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <label>Background</label>
+                            <input type="color" id="theme-edit-bg">
+                        </div>
+
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <label>Surface (Cards)</label>
+                            <input type="color" id="theme-edit-surface">
+                        </div>
+
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <label>Text Main</label>
+                            <input type="color" id="theme-edit-text-main">
+                        </div>
+
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <label>Text Muted</label>
+                            <input type="color" id="theme-edit-text-muted">
+                        </div>
+
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <label>Primary Button</label>
+                            <input type="color" id="theme-edit-accent">
+                        </div>
+
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <label>Button Hover</label>
+                            <input type="color" id="theme-edit-accent-hover">
+                        </div>
+
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <label>Border</label>
+                            <input type="color" id="theme-edit-border">
+                        </div>
+
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <label>Danger/Error</label>
+                            <input type="color" id="theme-edit-danger">
+                        </div>
+
                     </div>
 
                     <div style="display: flex; gap: 10px; margin-top: 15px;">
-                        <button id="save-theme-btn" class="btn-primary" style="flex: 2;">💾 Save Changes</button>
-                        <button id="delete-theme-btn" class="btn-danger" style="flex: 1;">🗑️ Delete</button>
+
+                        <button id="save-theme-btn"
+                                class="btn-primary"
+                                style="flex: 2;">
+                            💾 Save Changes
+                        </button>
+
+                        <button id="delete-theme-btn"
+                                class="btn-danger"
+                                style="flex: 1;">
+                            🗑️ Delete
+                        </button>
+
                     </div>
+
                 </div>
+
             </section>
+
             <hr>
-            
+
             <section class="settings-section">
+
                 <h4>System Data & App Sync</h4>
-                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 10px;">Export, replace, or merge data. Select a specific app or perform a full global sync.</p>
-                
-                <select id="sync-target-select" class="app-select" style="margin-bottom: 15px;">
+
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 10px;">
+                    Export, replace, or merge data.
+                    Select a specific app or perform a full global sync.
+                </p>
+
+                <select id="sync-target-select"
+                        class="app-select"
+                        style="margin-bottom: 15px;">
+
                     <option value="global">Global Master (All Apps & Settings)</option>
                     <option value="themes">Themes</option>
                     <option value="inventory">Inventory Manager</option>
                     <option value="fleet">Fleet Management</option>
                     <option value="winterization">Winter Ops</option>
                     <option value="firstAid">First Aid Tracker</option>
+
                 </select>
-                
+
                 <div style="display: flex; flex-direction: column; gap: 10px;">
-                    <button id="btn-export-data" class="btn-primary" style="width: 100%;">⬇️ Export Selected Data (.json)</button>
-                    
+
+                    <button id="btn-export-data"
+                            class="btn-primary"
+                            style="width: 100%;">
+                        ⬇️ Export Selected Data (.json)
+                    </button>
+
                     <div style="display: flex; gap: 10px;">
-                        <input type="file" id="file-import-merge" accept=".json" style="display: none;">
-                        <button id="btn-import-merge" class="btn-outline" style="flex: 1; border-color: var(--accent-primary); color: var(--accent-primary);">🔄 Merge Import</button>
-                        
-                        <input type="file" id="file-import-replace" accept=".json" style="display: none;">
-                        <button id="btn-import-replace" class="btn-danger" style="flex: 1;">⚠️ Replace Import</button>
+
+                        <input type="file"
+                               id="file-import-merge"
+                               accept=".json"
+                               style="display: none;">
+
+                        <button id="btn-import-merge"
+                                class="btn-outline"
+                                style="flex: 1; border-color: var(--accent-primary); color: var(--accent-primary);">
+                            🔄 Merge Import
+                        </button>
+
+                        <input type="file"
+                               id="file-import-replace"
+                               accept=".json"
+                               style="display: none;">
+
+                        <button id="btn-import-replace"
+                                class="btn-danger"
+                                style="flex: 1;">
+                            ⚠️ Replace Import
+                        </button>
+
                     </div>
+
                 </div>
+
             </section>
+
         </div>
+
     </dialog>
 
+    <!-- CUSTOM DIALOG -->
     <dialog id="custom-dialog-modal">
+
         <div class="modal-header">
             <h3 id="cd-title">Notice</h3>
             <button id="cd-close" class="icon-btn">❌</button>
         </div>
+
         <div class="modal-body" style="text-align: center;">
-            <p id="cd-message" style="margin-bottom: 20px; font-size: 1.1rem;"></p>
-            <input type="text" id="cd-input" class="app-input hidden" style="margin-bottom: 20px; font-size: 1.1rem; text-align: center;">
+
+            <p id="cd-message"
+               style="margin-bottom: 20px; font-size: 1.1rem;">
+            </p>
+
+            <input type="text"
+                   id="cd-input"
+                   class="app-input hidden"
+                   style="margin-bottom: 20px; font-size: 1.1rem; text-align: center;">
+
             <div style="display: flex; gap: 10px; justify-content: center; margin-top: 10px;">
-                <button id="cd-cancel" class="btn-outline hidden" style="flex: 1;">Cancel</button>
-                <button id="cd-confirm" class="btn-primary" style="flex: 1;">OK</button>
+
+                <button id="cd-cancel"
+                        class="btn-outline hidden"
+                        style="flex: 1;">
+                    Cancel
+                </button>
+
+                <button id="cd-confirm"
+                        class="btn-primary"
+                        style="flex: 1;">
+                    OK
+                </button>
+
             </div>
+
         </div>
+
     </dialog>
 
     <div id="toast-container"></div>
 
-    <script src="js/stateManager.js"></script>
-    <script src="js/notifications.js"></script>
-    <script src="js/core.js"></script>
+    <!-- Core Scripts -->
+    <script src="/Park-Hub/js/stateManager.js"></script>
+    <script src="/Park-Hub/js/notifications.js"></script>
+    <script src="/Park-Hub/js/core.js"></script>
 
-    <script src="apps/inventory/template.js"></script>
-    <script src="apps/inventory/app.js"></script>
-    
-    <script src="apps/fleet/template.js"></script>
-    <script src="apps/fleet/app.js"></script>
-    
-    <script src="apps/winterization/template.js"></script>
-    <script src="apps/winterization/app.js"></script>
-    
-    <script src="apps/first-aid/template.js"></script>
-    <script src="apps/first-aid/app.js"></script>
-    
-    <script src="apps/parts/template.js"></script>
-    <script src="apps/parts/app.js"></script>
+    <!-- Inventory -->
+    <script src="/Park-Hub/apps/inventory/template.js"></script>
+    <script src="/Park-Hub/apps/inventory/app.js"></script>
 
+    <!-- Fleet -->
+    <script src="/Park-Hub/apps/fleet/template.js"></script>
+    <script src="/Park-Hub/apps/fleet/app.js"></script>
+
+    <!-- Winterization -->
+    <script src="/Park-Hub/apps/winterization/template.js"></script>
+    <script src="/Park-Hub/apps/winterization/app.js"></script>
+
+    <!-- First Aid -->
+    <script src="/Park-Hub/apps/first-aid/template.js"></script>
+    <script src="/Park-Hub/apps/first-aid/app.js"></script>
+
+    <!-- Parts -->
+    <script src="/Park-Hub/apps/parts/template.js"></script>
+    <script src="/Park-Hub/apps/parts/app.js"></script>
+
+    <!-- SERVICE WORKER -->
     <script>
+
         if ('serviceWorker' in navigator) {
+
             window.addEventListener('load', () => {
-                // Using a clean relative string to ensure proper scope mapping on mobile
-                navigator.serviceWorker.register('sw.js', { scope: './' })
-                .then(reg => {
-                    console.log('Service Worker Registered! Offline mode active.');
-                    
-                    // Force an update check on load to bypass stubborn caches
-                    reg.update();
+
+                navigator.serviceWorker.register('/Park-Hub/sw.js', {
+                    scope: '/Park-Hub/'
                 })
-                .catch(err => console.error('Service Worker Registration Failed:', err));
+                .then((reg) => {
+
+                    console.log('Service Worker Registered!');
+                    reg.update();
+
+                })
+                .catch((err) => {
+
+                    console.error('Service Worker Registration Failed:', err);
+
+                });
+
             });
+
         }
+
     </script>
+
 </body>
 </html>
+```
