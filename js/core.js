@@ -55,9 +55,9 @@ const CoreSystem = {
                     t.classList.add('btn-outline'); 
                 });
                 
-                // Hide all tab content
-                document.getElementById('settings-view-theme').classList.add('hidden');
-                document.getElementById('settings-view-sync').classList.add('hidden');
+                // Forcing display style instead of relying on classes
+                document.getElementById('settings-view-theme').style.display = 'none';
+                document.getElementById('settings-view-sync').style.display = 'none';
                 
                 // Add active styling to the clicked tab
                 e.target.classList.remove('btn-outline');
@@ -65,7 +65,7 @@ const CoreSystem = {
                 
                 // Show the targeted content
                 const targetId = 'settings-view-' + e.target.getAttribute('data-target');
-                document.getElementById(targetId).classList.remove('hidden');
+                document.getElementById(targetId).style.display = 'block';
             });
         });
 
@@ -146,7 +146,7 @@ const CoreSystem = {
                 
                 const confirmed = await DialogSystem.confirm("Merge Data?", `This will safely sync the uploaded file with your current ${targetName} data. Existing items will be updated and new items added without creating duplicates. Proceed?`);
                 if (confirmed) StateManager.importData(e.target.files[0], target, 'merge');
-                e.target.value = ''; // reset the input so you can select the same file again if needed
+                e.target.value = ''; // reset the input
             }
         });
 
