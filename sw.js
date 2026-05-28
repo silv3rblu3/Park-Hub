@@ -1,7 +1,7 @@
 // sw.js
 
-// Bumped cache string to v12 to override existing background allocations
-const CACHE_NAME = 'omnihub-v12'; 
+// Bumped cache string to v14 to invalidate old mobile registry settings
+const CACHE_NAME = 'omnihub-v14'; 
 
 const ASSETS_TO_CACHE = [
     '/Park-Hub/',
@@ -27,7 +27,7 @@ const ASSETS_TO_CACHE = [
     '/Park-Hub/assets/icon-192.png',
     '/Park-Hub/assets/icon-512.png',
 
-    // External assets
+    // External scripts (Using stable production CDNJS URLs to pass mobile validation)
     'https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js',
     'https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js',
     'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js',
@@ -39,21 +39,21 @@ self.addEventListener('install', (event) => {
     self.skipWaiting(); 
     event.waitUntil(
         caches.open(CACHE_NAME).then(async (cache) => {
-            console.log('SW: Initiating asset caching routines...');
+            console.log('SW: Running core asset allocation loops...');
             for (let i = 0; i < ASSETS_TO_CACHE.length; i++) {
                 const asset = ASSETS_TO_CACHE[i];
                 try {
                     const response = await fetch(asset);
                     if (!response.ok) {
-                        console.error(`🚨 SW Cache Failure: Resource missing -> ${asset} (Status: ${response.status})`);
+                        console.error(`🚨 SW Cache Load Error: Resource missing -> ${asset} (Status: ${response.status})`);
                     } else {
                         await cache.put(asset, response.clone());
                     }
                 } catch (e) {
-                    console.error(`🚨 SW Cache Failure: Connectivity block on -> ${asset}`, e);
+                    console.error(`🚨 SW Cache Load Error: Network execution blocked on -> ${asset}`, e);
                 }
             }
-            console.log('SW: Caching routine complete.');
+            console.log('SW: Caching complete.');
         })
     );
 });

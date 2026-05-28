@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Park Management Hub</title>
     
-    <link rel="manifest" href="/Park-Hub/manifest.json">
+    <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2c3e50">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -197,10 +197,10 @@
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                // Register using the absolute repository scope block directly
+                // Forcing the absolute subfolder path and strict scope constraints
                 navigator.serviceWorker.register('/Park-Hub/sw.js', { scope: '/Park-Hub/' })
                 .then(reg => {
-                    console.log('Service Worker Registered! Scope aligned to subdirectory.');
+                    console.log('Service Worker Registered! Offline mode active.');
                     reg.update();
                 })
                 .catch(err => console.error('Service Worker Registration Failed:', err));
