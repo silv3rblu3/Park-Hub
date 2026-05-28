@@ -197,8 +197,14 @@
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
-                .then(reg => console.log('Service Worker Registered! Offline mode active.'))
+                // Using a clean relative string to ensure proper scope mapping on mobile
+                navigator.serviceWorker.register('sw.js', { scope: './' })
+                .then(reg => {
+                    console.log('Service Worker Registered! Offline mode active.');
+                    
+                    // Force an update check on load to bypass stubborn caches
+                    reg.update();
+                })
                 .catch(err => console.error('Service Worker Registration Failed:', err));
             });
         }

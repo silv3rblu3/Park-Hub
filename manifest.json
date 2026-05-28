@@ -1,10 +1,12 @@
 {
+  "id": "park-management-hub-pwa",
   "name": "Park Management Hub",
   "short_name": "PMH",
   "description": "Unified offline-first management suite.",
-  "start_url": ".",
-  "scope": ".",
+  "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
+  "orientation": "any",
   "background_color": "#1a1a1a",
   "theme_color": "#4CAF50",
   "icons": [
