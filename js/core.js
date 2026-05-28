@@ -139,27 +139,49 @@ const CoreSystem = {
         document.getElementById('btn-import-merge').addEventListener('click', () => mergeInput.click());
         document.getElementById('btn-import-replace').addEventListener('click', () => replaceInput.click());
 
-        mergeInput.addEventListener('change', async (e) => {
-            if (e.target.files.length > 0) {
-                const target = document.getElementById('sync-target-select').value;
-                const targetName = document.getElementById('sync-target-select').options[document.getElementById('sync-target-select').selectedIndex].text;
-                
-                const confirmed = await DialogSystem.confirm("Merge Data?", `This will safely sync the uploaded file with your current ${targetName} data. Existing items will be updated and new items added without creating duplicates. Proceed?`);
-                if (confirmed) StateManager.importData(e.target.files[0], target, 'merge');
-                e.target.value = ''; // reset the input
+        // --- SMART IMPORT ROUTING ---
+        const handleSmartImport = async (e, mode) => {
+            if (e.target.files.length === 0) return;
+            const file = e.target.files[0];
+            
+            let target = document.getElementById('sync-target-select').value; // Default to dropdown
+            
+            // Try to extract the module from the filename
+            const fileNameParts = file.name.split('_');
+            if (fileNameParts.length >= 2 && fileNameParts[1] === 'PMH') {
+                const prefix = fileNameParts[0].toLowerCase();
+                const targetMap = { 
+                    'global': 'global', 'themes': 'themes', 'inventory': 'inventory', 
+                    'fleet': 'fleet', 'winterization': 'winterization', 
+                    'firstaid': 'firstAid', 'parts': 'parts' 
+                };
+                if (targetMap[prefix]) {
+                    target = targetMap[prefix];
+                }
+            } else {
+                const proceed = await DialogSystem.confirm("Unrecognized File Format", "The uploaded file doesn't match the standard PMH export naming convention. Attempt to force import it into the currently selected app anyway?");
+                if (!proceed) { e.target.value = ''; return; }
             }
-        });
 
-        replaceInput.addEventListener('change', async (e) => {
-            if (e.target.files.length > 0) {
-                const target = document.getElementById('sync-target-select').value;
-                const targetName = document.getElementById('sync-target-select').options[document.getElementById('sync-target-select').selectedIndex].text;
-                
-                const confirmed = await DialogSystem.confirm("⚠️ OVERWRITE Data?", `This will COMPLETELY WIPE AND REPLACE your current ${targetName} data with the uploaded file. This cannot be undone. Proceed?`);
-                if (confirmed) StateManager.importData(e.target.files[0], target, 'replace');
-                e.target.value = ''; // reset the input
+            // Map internal target ID to display name for the prompt
+            const displayNames = {
+                'global': 'Global Master (All Apps)', 'themes': 'Themes', 'inventory': 'Inventory Manager',
+                'fleet': 'Fleet Management', 'winterization': 'Winter Ops', 'firstAid': 'First Aid', 'parts': 'Replacement Parts'
+            };
+            const targetName = displayNames[target];
+
+            if (mode === 'merge') {
+                const confirmed = await DialogSystem.confirm(`Merge into ${targetName}?`, `The system detected this file belongs to ${targetName}. This will safely sync the uploaded file without creating duplicates. Proceed?`);
+                if (confirmed) StateManager.importData(file, target, 'merge');
+            } else {
+                const confirmed = await DialogSystem.confirm(`⚠️ OVERWRITE ${targetName}?`, `The system detected this file belongs to ${targetName}. This will COMPLETELY WIPE AND REPLACE your current ${targetName} data. This cannot be undone. Proceed?`);
+                if (confirmed) StateManager.importData(file, target, 'replace');
             }
-        });
+            e.target.value = '';
+        };
+
+        mergeInput.addEventListener('change', (e) => handleSmartImport(e, 'merge'));
+        replaceInput.addEventListener('change', (e) => handleSmartImport(e, 'replace'));
     },
 
     populateThemeEditor: function(selectId = null) {
