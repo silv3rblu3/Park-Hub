@@ -45,6 +45,30 @@ const CoreSystem = {
         document.getElementById('global-settings-trigger').addEventListener('click', () => { this.populateThemeEditor(); settingsModal.showModal(); });
         document.getElementById('close-settings-btn').addEventListener('click', () => settingsModal.close());
 
+        // --- NEW SETTINGS TABS LOGIC ---
+        const settingsTabs = document.querySelectorAll('.settings-tab');
+        settingsTabs.forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                // Strip active styling from all tabs
+                settingsTabs.forEach(t => { 
+                    t.classList.remove('btn-primary'); 
+                    t.classList.add('btn-outline'); 
+                });
+                
+                // Hide all tab content
+                document.getElementById('settings-view-theme').classList.add('hidden');
+                document.getElementById('settings-view-sync').classList.add('hidden');
+                
+                // Add active styling to the clicked tab
+                e.target.classList.remove('btn-outline');
+                e.target.classList.add('btn-primary');
+                
+                // Show the targeted content
+                const targetId = 'settings-view-' + e.target.getAttribute('data-target');
+                document.getElementById(targetId).classList.remove('hidden');
+            });
+        });
+
         document.getElementById('global-theme-select').addEventListener('change', (e) => this.loadThemeIntoEditor(e.target.value));
         
         document.getElementById('new-theme-btn').addEventListener('click', () => {
@@ -122,7 +146,7 @@ const CoreSystem = {
                 
                 const confirmed = await DialogSystem.confirm("Merge Data?", `This will safely sync the uploaded file with your current ${targetName} data. Existing items will be updated and new items added without creating duplicates. Proceed?`);
                 if (confirmed) StateManager.importData(e.target.files[0], target, 'merge');
-                e.target.value = '';
+                e.target.value = ''; // reset the input so you can select the same file again if needed
             }
         });
 
@@ -133,7 +157,7 @@ const CoreSystem = {
                 
                 const confirmed = await DialogSystem.confirm("⚠️ OVERWRITE Data?", `This will COMPLETELY WIPE AND REPLACE your current ${targetName} data with the uploaded file. This cannot be undone. Proceed?`);
                 if (confirmed) StateManager.importData(e.target.files[0], target, 'replace');
-                e.target.value = '';
+                e.target.value = ''; // reset the input
             }
         });
     },

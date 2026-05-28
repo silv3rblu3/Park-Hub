@@ -95,8 +95,12 @@
         </div>
         <div class="modal-body">
             
-            <section class="settings-section">
-                <h4>Theme Manager</h4>
+            <div style="display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid var(--accent-primary); padding-bottom: 10px;">
+                <button class="settings-tab btn-primary" data-target="theme" style="flex: 1;">🎨 Theme Manager</button>
+                <button class="settings-tab btn-outline" data-target="sync" style="flex: 1;">🔄 Data & Sync</button>
+            </div>
+
+            <section id="settings-view-theme" class="settings-section">
                 <div style="display: flex; gap: 10px; margin-bottom: 15px;">
                     <select id="global-theme-select" class="app-select" style="flex: 2; margin-bottom: 0;"></select>
                     <button id="apply-theme-btn" class="btn-primary" style="flex: 1;">Set Active</button>
@@ -128,10 +132,8 @@
                     </div>
                 </div>
             </section>
-            <hr>
             
-            <section class="settings-section">
-                <h4>System Data & App Sync</h4>
+            <section id="settings-view-sync" class="settings-section hidden">
                 <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 10px;">Export, replace, or merge data. Select a specific app or perform a full global sync.</p>
                 
                 <select id="sync-target-select" class="app-select" style="margin-bottom: 15px;">
@@ -141,16 +143,17 @@
                     <option value="fleet">Fleet Management</option>
                     <option value="winterization">Winter Ops</option>
                     <option value="firstAid">First Aid Tracker</option>
+                    <option value="parts">Replacement Parts</option>
                 </select>
                 
                 <div style="display: flex; flex-direction: column; gap: 10px;">
                     <button id="btn-export-data" class="btn-primary" style="width: 100%;">⬇️ Export Selected Data (.json)</button>
                     
                     <div style="display: flex; gap: 10px;">
-                        <input type="file" id="file-import-merge" accept=".json" style="display: none;">
+                        <input type="file" id="file-import-merge" accept="application/json,.json" style="display: none;">
                         <button id="btn-import-merge" class="btn-outline" style="flex: 1; border-color: var(--accent-primary); color: var(--accent-primary);">🔄 Merge Import</button>
                         
-                        <input type="file" id="file-import-replace" accept=".json" style="display: none;">
+                        <input type="file" id="file-import-replace" accept="application/json,.json" style="display: none;">
                         <button id="btn-import-replace" class="btn-danger" style="flex: 1;">⚠️ Replace Import</button>
                     </div>
                 </div>
