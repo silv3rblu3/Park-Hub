@@ -266,18 +266,25 @@ const StateManager = {
     exportData: function(target) {
         const state = this.loadGlobalState();
         let data, filename;
-        const date = new Date().toISOString().split('T')[0];
+        
+        // Formats to YYYY-MM-DD_HH-MM-SS
+        const now = new Date();
+        const dateStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+        const timeStr = String(now.getHours()).padStart(2, '0') + '-' + String(now.getMinutes()).padStart(2, '0') + '-' + String(now.getSeconds()).padStart(2, '0');
+        const dateTime = `${dateStr}_${timeStr}`;
+
+        // Format the module prefix (e.g. 'inventory' -> 'Inventory')
+        let prefix = target === 'firstAid' ? 'FirstAid' : target.charAt(0).toUpperCase() + target.slice(1);
 
         if (target === 'global') {
             data = state;
-            filename = `PMH_Global_Master_${date}.json`;
         } else if (target === 'themes') {
             data = state.themes;
-            filename = `PMH_Themes_${date}.json`;
         } else {
             data = state.apps[target] || {};
-            filename = `PMH_${target.charAt(0).toUpperCase() + target.slice(1)}_Sync_${date}.json`;
         }
+        
+        filename = `${prefix}_PMH_${dateTime}.json`;
 
         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
         const anchor = document.createElement('a');
