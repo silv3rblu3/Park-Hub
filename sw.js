@@ -1,7 +1,7 @@
 // sw.js
 
-// Bumped cache string to v14 to invalidate old mobile registry settings
-const CACHE_NAME = 'omnihub-v14'; 
+// Bumped cache string to v15 to drop previous unpkg redirect remnants
+const CACHE_NAME = 'omnihub-v15'; 
 
 const ASSETS_TO_CACHE = [
     '/Park-Hub/',
@@ -27,7 +27,7 @@ const ASSETS_TO_CACHE = [
     '/Park-Hub/assets/icon-192.png',
     '/Park-Hub/assets/icon-512.png',
 
-    // External scripts (Using stable production CDNJS URLs to pass mobile validation)
+    // External scripts - Matched perfectly with index.html to guarantee no redirects
     'https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js',
     'https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js',
     'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js',

@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" href="assets/icon-192.png">
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
@@ -160,7 +160,7 @@
 
     <dialog id="custom-dialog-modal">
         <div class="modal-header">
-            <h3 id="cd-title">Notice</h3>
+            <h3>Notice</h3>
             <button id="cd-close" class="icon-btn">❌</button>
         </div>
         <div class="modal-body" style="text-align: center;">
@@ -197,7 +197,6 @@
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                // Forcing the absolute subfolder path and strict scope constraints
                 navigator.serviceWorker.register('/Park-Hub/sw.js', { scope: '/Park-Hub/' })
                 .then(reg => {
                     console.log('Service Worker Registered! Offline mode active.');
