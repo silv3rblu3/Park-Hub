@@ -67,7 +67,10 @@ function renderInventoryApp() {
                     <div><label>Vendor Item ID</label><input type="text" id="new-vendor" class="app-input" placeholder="Store ID / MPN"></div>
                 </div>
                 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                <label>Vendor Web Link (URL)</label>
+                <input type="url" id="new-vendor-url" class="app-input" placeholder="https://www.vendor.com/item...">
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; margin-top: 15px;">
                     <div><label>Target Quantity (Pars)</label><input type="number" id="new-target" class="app-input" placeholder="100" required></div>
                     <div><label>Reorder Level (Low Stock)</label><input type="number" id="new-reorder" class="app-input" placeholder="25" required></div>
                 </div>
@@ -98,7 +101,10 @@ function renderInventoryApp() {
                     <div><label>Vendor Item ID</label><input type="text" id="edit-vendor" class="app-input"></div>
                 </div>
                 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                <label>Vendor Web Link (URL)</label>
+                <input type="url" id="edit-vendor-url" class="app-input" placeholder="https://www.vendor.com/item...">
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; margin-top: 15px;">
                     <div><label>Target Quantity (Pars)</label><input type="number" id="edit-target" class="app-input" required></div>
                     <div><label>Reorder Level (Low Stock)</label><input type="number" id="edit-reorder" class="app-input" required></div>
                 </div>
