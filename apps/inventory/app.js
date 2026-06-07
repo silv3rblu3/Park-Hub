@@ -583,51 +583,52 @@ function initInventoryLogic() {
                 NotificationSystem.show('Inventory Sync File Exported', 'success');
             });
 
-            document.getElementById('import-inv-json-file').addEventListener('change', (e) => {
+            // UPDATED IMPORT LOGIC: Uses async/await to pause execution until confirmed
+            document.getElementById('import-inv-json-file').addEventListener('change', async (e) => {
                 if(e.target.files.length > 0) {
-                    DialogSystem.confirm("Merge Inventory Data?", "This will sync the uploaded file with your current data. It updates existing items, adds new items, and merges transaction logs without creating duplicates. Proceed?")
-                    .then(confirm => {
-                        if (confirm) {
-                            const reader = new FileReader();
-                            reader.onload = (event) => {
-                                try {
-                                    const importedData = JSON.parse(event.target.result);
-                                    if (!importedData.items || !importedData.transactions || !importedData.categories) {
-                                        throw new Error("Invalid inventory sync format.");
-                                    }
-
-                                    importedData.categories.forEach(cat => {
-                                        if (!invData.categories.includes(cat)) {
-                                            invData.categories.push(cat);
-                                        }
-                                    });
-
-                                    importedData.items.forEach(importedItem => {
-                                        const existingIndex = invData.items.findIndex(i => i.sku === importedItem.sku);
-                                        if (existingIndex > -1) {
-                                            invData.items[existingIndex] = { ...invData.items[existingIndex], ...importedItem };
-                                        } else {
-                                            invData.items.push(importedItem);
-                                        }
-                                    });
-
-                                    importedData.transactions.forEach(importedTx => {
-                                        if (!invData.transactions.some(t => t.id === importedTx.id)) {
-                                            invData.transactions.push(importedTx);
-                                        }
-                                    });
-
-                                    safeSave();
-                                    NotificationSystem.show('Inventory Data Merged Successfully', 'success');
-                                    renderInvView('reports'); 
-                                } catch (err) { 
-                                    NotificationSystem.show('Import Failed: Invalid JSON file', 'error'); 
+                    const file = e.target.files[0];
+                    const confirm = await DialogSystem.confirm("Merge Inventory Data?", "This will sync the uploaded file with your current data. It updates existing items, adds new items, and merges transaction logs without creating duplicates. Proceed?");
+                    
+                    if (confirm) {
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                            try {
+                                const importedData = JSON.parse(event.target.result);
+                                if (!importedData.items || !importedData.transactions || !importedData.categories) {
+                                    throw new Error("Invalid inventory sync format.");
                                 }
-                            }; 
-                            reader.readAsText(e.target.files[0]);
-                        }
-                        e.target.value = ''; 
-                    });
+
+                                importedData.categories.forEach(cat => {
+                                    if (!invData.categories.includes(cat)) {
+                                        invData.categories.push(cat);
+                                    }
+                                });
+
+                                importedData.items.forEach(importedItem => {
+                                    const existingIndex = invData.items.findIndex(i => i.sku === importedItem.sku);
+                                    if (existingIndex > -1) {
+                                        invData.items[existingIndex] = { ...invData.items[existingIndex], ...importedItem };
+                                    } else {
+                                        invData.items.push(importedItem);
+                                    }
+                                });
+
+                                importedData.transactions.forEach(importedTx => {
+                                    if (!invData.transactions.some(t => t.id === importedTx.id)) {
+                                        invData.transactions.push(importedTx);
+                                    }
+                                });
+
+                                safeSave();
+                                NotificationSystem.show('Inventory Data Merged Successfully', 'success');
+                                renderInvView('reports'); 
+                            } catch (err) { 
+                                NotificationSystem.show('Import Failed: Invalid JSON file', 'error'); 
+                            }
+                        }; 
+                        reader.readAsText(file);
+                    }
+                    e.target.value = ''; // Clears input so you can re-upload if needed
                 }
             });
 
@@ -641,6 +642,7 @@ function initInventoryLogic() {
                         invData.items = newItems; safeSave();
                         NotificationSystem.show('Master Items Imported!', 'success'); renderInvView('reports');
                     }});
+                    e.target.value = ''; // Clears input so you can re-upload if needed
                 }
             });
 
@@ -654,6 +656,7 @@ function initInventoryLogic() {
                         invData.transactions = newTrans; safeSave();
                         NotificationSystem.show('Transactions Imported!', 'success'); renderInvView('reports');
                     }});
+                    e.target.value = ''; // Clears input so you can re-upload if needed
                 }
             });
 
