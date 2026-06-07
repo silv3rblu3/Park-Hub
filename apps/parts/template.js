@@ -99,27 +99,51 @@ function renderPartsApp() {
             </div>
         </div>
 
-        <div id="parts-view-reports" class="app-card parts-no-print" style="display: none;">
-            <h3 style="margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">Parts Usage & Audit Report</h3>
-            <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 20px; align-items: flex-end;">
-                <div style="flex: 1; min-width: 150px;">
-                    <label>Start Date</label>
-                    <input type="date" id="parts-report-start" class="app-input" style="margin-bottom: 0;">
-                </div>
-                <div style="flex: 1; min-width: 150px;">
-                    <label>End Date</label>
-                    <input type="date" id="parts-report-end" class="app-input" style="margin-bottom: 0;">
-                </div>
-                <button id="parts-generate-report-btn" class="btn-primary" style="flex: 1; min-width: 150px; padding: 11px;">📊 Generate Report</button>
-            </div>
-            
-            <div id="parts-report-print-controls" class="hidden" style="display: flex; gap: 10px; margin-bottom: 20px; background: rgba(0,0,0,0.03); padding: 15px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
-                <button id="btn-print-summary" class="btn-outline" style="flex: 1;">🖨️ Print Summary Only</button>
-                <button id="btn-print-log" class="btn-outline" style="flex: 1;">🖨️ Print Details Only</button>
-                <button id="btn-print-full" class="btn-primary" style="flex: 1;">🖨️ Print Full Report</button>
-            </div>
+        <div id="parts-view-reports" class="parts-no-print" style="display: none;">
+            <div style="display: flex; flex-direction: column; gap: 20px;">
+                <div class="app-card">
+                    <h3 style="margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">Parts Usage & Audit Report</h3>
+                    <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 20px; align-items: flex-end;">
+                        <div style="flex: 1; min-width: 150px;">
+                            <label>Start Date</label>
+                            <input type="date" id="parts-report-start" class="app-input" style="margin-bottom: 0;">
+                        </div>
+                        <div style="flex: 1; min-width: 150px;">
+                            <label>End Date</label>
+                            <input type="date" id="parts-report-end" class="app-input" style="margin-bottom: 0;">
+                        </div>
+                        <button id="parts-generate-report-btn" class="btn-primary" style="flex: 1; min-width: 150px; padding: 11px;">📊 Generate Report</button>
+                    </div>
+                    
+                    <div id="parts-report-print-controls" class="hidden" style="display: flex; gap: 10px; margin-bottom: 20px; background: rgba(0,0,0,0.03); padding: 15px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+                        <button id="btn-print-summary" class="btn-outline" style="flex: 1;">🖨️ Print Summary Only</button>
+                        <button id="btn-print-log" class="btn-outline" style="flex: 1;">🖨️ Print Details Only</button>
+                        <button id="btn-print-full" class="btn-primary" style="flex: 1;">🖨️ Print Full Report</button>
+                    </div>
 
-            <div id="parts-report-results"></div>
+                    <div id="parts-report-results"></div>
+                </div>
+
+                <div class="app-card">
+                    <h3 style="margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">Database Sync & Backup</h3>
+                    
+                    <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
+                        <input type="file" id="csv-import-parts" accept=".csv" class="hidden">
+                        <button class="btn-outline" style="flex: 1; min-width: 200px;" onclick="document.getElementById('csv-import-parts').click()">📥 Import Parts (CSV)</button>
+                        
+                        <input type="file" id="csv-import-parts-trans" accept=".csv" class="hidden">
+                        <button class="btn-outline" style="flex: 1; min-width: 200px;" onclick="document.getElementById('csv-import-parts-trans').click()">📥 Import Trans (CSV)</button>
+                    </div>
+
+                    <h4 style="margin-top: 20px; margin-bottom: 10px;">Full Parts Sync (JSON)</h4>
+                    <p style="color: var(--text-secondary); margin-bottom: 10px; font-size: 0.85rem;">Export or merge complete parts state (catalog, areas, kits, and transactions) to sync across devices.</p>
+                    
+                    <button id="export-parts-json-btn" class="btn-primary" style="width: 100%; margin-bottom: 10px;">⬇️ Export Parts Sync File (.json)</button>
+                    
+                    <input type="file" id="import-parts-json-file" accept=".json" class="hidden">
+                    <button class="btn-outline" style="width: 100%; margin-bottom: 10px; border-color: var(--accent-primary); color: var(--accent-primary);" onclick="document.getElementById('import-parts-json-file').click()">🔄 Merge Sync File (.json)</button>
+                </div>
+            </div>
         </div>
 
         <dialog id="parts-editor-modal" style="width: 95%; max-width: 600px;">

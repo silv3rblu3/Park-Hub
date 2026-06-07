@@ -223,7 +223,7 @@ function initPartsLogic() {
             document.getElementById('part-delete-btn').style.display = 'block';
         } else {
             document.getElementById('parts-editor-title').innerText = "Add New Part";
-            document.getElementById('part-edit-id').value = 'part_' + Date.now();
+            document.getElementById('part-edit-id').value = 'part_' + Date.now() + Math.random().toString(36).substr(2, 9);
             ['name', 'sku', 'sub', 'qty', 'min', 'loc', 'vendor-url', 'vendor-price', 'notes', 'img'].forEach(id => document.getElementById(`part-edit-${id}`).value = '');
             document.getElementById('part-edit-critical').checked = false;
             document.getElementById('part-delete-btn').style.display = 'none';
@@ -250,6 +250,7 @@ function initPartsLogic() {
             media: [{ type: "image", url: document.getElementById('part-edit-img').value }]
         };
 
+        if(!state.partsCatalog) state.partsCatalog = [];
         const idx = state.partsCatalog.findIndex(p => p.id === id);
         const isNew = idx === -1;
         const previousQty = isNew ? 0 : Number(state.partsCatalog[idx].qty);
@@ -505,7 +506,7 @@ function initPartsLogic() {
     };
 
 
-    // --- Reports Engine ---
+    // --- Reports Engine & Sync ---
     document.getElementById('parts-generate-report-btn').onclick = () => {
         const startStr = document.getElementById('parts-report-start').value;
         const endStr = document.getElementById('parts-report-end').value;
@@ -642,76 +643,134 @@ function initPartsLogic() {
     document.getElementById('btn-print-log').onclick = () => executeReportPrint('log');
     document.getElementById('btn-print-full').onclick = () => executeReportPrint('full');
 
+    // EXPORT JSON
+    document.getElementById('export-parts-json-btn').addEventListener('click', () => {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state, null, 2));
+        const anchor = document.createElement('a');
+        anchor.setAttribute("href", dataStr); 
+        anchor.setAttribute("download", `PMH_Parts_Sync_${new Date().toISOString().split('T')[0]}.json`);
+        document.body.appendChild(anchor); 
+        anchor.click(); 
+        anchor.remove();
+        NotificationSystem.show('Parts Sync File Exported', 'success');
+    });
 
-    // --- Area Management ---
-    const areaModal = document.getElementById('parts-area-modal');
-    document.getElementById('parts-manage-areas-btn').onclick = () => { renderAreaManager(); areaModal.showModal(); };
-    document.getElementById('parts-close-area').onclick = () => areaModal.close();
+    // IMPORT JSON
+    document.getElementById('import-parts-json-file').addEventListener('change', async (e) => {
+        if(e.target.files.length > 0) {
+            const file = e.target.files[0];
+            const confirm = await DialogSystem.confirm("Merge Parts Data?", "This will sync the uploaded file with your current data. It updates existing parts, adds new parts, and merges transaction logs and kits. Proceed?");
+            
+            if (confirm) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const imported = JSON.parse(event.target.result);
+                        if (!state.partsCatalog) state.partsCatalog = [];
+                        if (!state.transactions) state.transactions = [];
+                        if (!state.kits) state.kits = [];
+                        if (!state.areaTags) state.areaTags = {};
 
-    function renderAreaManager() {
-        const list = document.getElementById('parts-area-list');
-        list.innerHTML = '';
-        Object.keys(state.areaTags || {}).forEach(area => {
-            const div = document.createElement('div');
-            div.style = "display:flex; justify-content:space-between; align-items:center; padding:10px; background:var(--bg-surface); border:1px solid var(--border-color); border-radius:4px;";
-            div.innerHTML = `
-                <input type="text" class="app-input parts-area-rename-input" data-original="${area}" value="${area}" style="margin:0; width: 60%;">
-                <div>
-                    <button class="btn-primary parts-save-area-btn" data-original="${area}" style="padding: 5px 10px;">💾</button>
-                    <button class="btn-danger parts-del-area-btn" data-area="${area}" style="padding: 5px 10px;">🗑️</button>
-                </div>
-            `;
-            list.appendChild(div);
-        });
+                        (imported.partsCatalog || []).forEach(impPart => {
+                            const idx = state.partsCatalog.findIndex(p => p.id === impPart.id || (p.sku && p.sku === impPart.sku));
+                            if (idx > -1) { state.partsCatalog[idx] = { ...state.partsCatalog[idx], ...impPart }; } 
+                            else { state.partsCatalog.push(impPart); }
+                        });
 
-        document.querySelectorAll('.parts-save-area-btn').forEach(btn => {
-            btn.onclick = (e) => {
-                const originalName = e.target.getAttribute('data-original');
-                const rowInput = document.querySelector(`.parts-area-rename-input[data-original="${originalName}"]`);
-                const newName = rowInput.value.trim();
+                        (imported.transactions || []).forEach(impTx => {
+                            if (!state.transactions.some(t => t.id === impTx.id)) state.transactions.push(impTx);
+                        });
 
-                if (newName && newName !== originalName) {
-                    if (state.areaTags[newName]) return NotificationSystem.show("Area name already exists", "error");
-                    
-                    state.areaTags[newName] = [...state.areaTags[originalName]];
-                    delete state.areaTags[originalName];
-                    if(activeArea === originalName) activeArea = newName;
-                    
-                    StateManager.setAppData('parts', state);
-                    NotificationSystem.show("Area Renamed", "success");
-                    renderAreaManager();
-                    renderAreaTabs();
-                    renderTable();
-                }
-            };
-        });
-    }
+                        (imported.kits || []).forEach(impKit => {
+                            const idx = state.kits.findIndex(k => k.id === impKit.id);
+                            if (idx > -1) { state.kits[idx] = { ...state.kits[idx], ...impKit }; } 
+                            else { state.kits.push(impKit); }
+                        });
 
-    document.getElementById('parts-add-area-btn').onclick = () => {
-        const val = document.getElementById('parts-new-area-name').value.trim();
-        if (val && !state.areaTags[val]) {
-            state.areaTags[val] = [];
-            StateManager.setAppData('parts', state);
-            document.getElementById('parts-new-area-name').value = '';
-            renderAreaManager();
-            renderAreaTabs();
-        }
-    };
+                        const impAreas = imported.areaTags || {};
+                        Object.keys(impAreas).forEach(area => {
+                            if (!state.areaTags[area]) state.areaTags[area] = [];
+                            impAreas[area].forEach(partId => {
+                                if (!state.areaTags[area].includes(partId)) state.areaTags[area].push(partId);
+                            });
+                        });
 
-    document.getElementById('parts-area-list').addEventListener('click', async (e) => {
-        if (e.target.classList.contains('parts-del-area-btn')) {
-            const area = e.target.getAttribute('data-area');
-            const confirmed = await DialogSystem.confirm("Delete Area Tab", `Remove the ${area} tab? The parts themselves will NOT be deleted.`);
-            if (confirmed) {
-                delete state.areaTags[area];
-                if (activeArea === area) activeArea = "All Parts";
-                StateManager.setAppData('parts', state);
-                renderAreaManager();
-                renderAreaTabs();
-                renderTable();
+                        StateManager.setAppData('parts', state);
+                        NotificationSystem.show('Parts Data Merged Successfully', 'success');
+                    } catch (err) { NotificationSystem.show('Import Failed: Invalid JSON file', 'error'); }
+                }; 
+                reader.readAsText(file);
             }
+            e.target.value = ''; 
         }
     });
+
+    // IMPORT CSV (PARTS)
+    document.getElementById('csv-import-parts').addEventListener('change', (e) => {
+        if(e.target.files.length > 0) {
+            Papa.parse(e.target.files[0], { header: true, skipEmptyLines: true, complete: function(results) {
+                const newParts = results.data.map(row => { 
+                    return {
+                        id: row['ID'] || 'part_' + Date.now() + Math.random().toString(36).substr(2, 9),
+                        sku: row['SKU'] || '', 
+                        name: row['Part Name'] || '', 
+                        location: row['Location'] || '', 
+                        notes: row['Notes'] || '',
+                        substituteId: row['Substitute ID'] || '',
+                        isCritical: String(row['Critical']).toLowerCase() === 'true',
+                        qty: parseFloat((row['Qty'] || '0').replace(/[^0-9.-]+/g,"")), 
+                        minQty: parseFloat((row['Min Qty'] || '0').replace(/[^0-9.-]+/g,"")), 
+                        vendor: { url: row['Vendor URL'] || '', lastPrice: parseFloat((row['Cost'] || '0').replace(/[^0-9.-]+/g,"")) },
+                        media: [{ type: "image", url: row['Image URL'] || '' }]
+                    };
+                }).filter(p => p.sku !== '' || p.name !== '');
+
+                if (!state.partsCatalog) state.partsCatalog = [];
+                newParts.forEach(np => {
+                    const existingIdx = state.partsCatalog.findIndex(p => (p.sku && p.sku === np.sku) || p.id === np.id);
+                    if (existingIdx > -1) {
+                        np.id = state.partsCatalog[existingIdx].id;
+                        state.partsCatalog[existingIdx] = { ...state.partsCatalog[existingIdx], ...np };
+                    } else { state.partsCatalog.push(np); }
+                });
+
+                StateManager.setAppData('parts', state);
+                NotificationSystem.show('Parts Catalog Imported!', 'success'); 
+            }});
+            e.target.value = ''; 
+        }
+    });
+
+    // IMPORT CSV (TRANSACTIONS)
+    document.getElementById('csv-import-parts-trans').addEventListener('change', (e) => {
+        if(e.target.files.length > 0) {
+            Papa.parse(e.target.files[0], { header: true, skipEmptyLines: true, complete: function(results) {
+                const newTrans = results.data.map(row => { return {
+                    id: row['ID'] || crypto.randomUUID(), 
+                    date: row['Date'] ? new Date(row['Date']).toISOString() : new Date().toISOString(), 
+                    partId: row['Part ID'] || row['SKU'] || '',
+                    type: row['Type'] || 'Stock In',
+                    qtyChange: parseFloat(row['Qty Change'] || 0), 
+                    oldTotal: parseFloat(row['Old Total'] || 0), 
+                    newTotal: parseFloat(row['New Total'] || 0), 
+                    note: row['Notes'] || ''
+                };}).filter(t => t.partId !== '');
+                
+                if (!state.transactions) state.transactions = [];
+                
+                newTrans.forEach(nt => {
+                    const part = state.partsCatalog.find(p => p.sku === nt.partId);
+                    if (part) nt.partId = part.id;
+                    if (!state.transactions.some(t => t.id === nt.id)) state.transactions.push(nt);
+                });
+
+                StateManager.setAppData('parts', state);
+                NotificationSystem.show('Parts Transactions Imported!', 'success'); 
+            }});
+            e.target.value = ''; 
+        }
+    });
+
 
     // --- Advanced Scanner Logic (Html5Qrcode) ---
     const scanModal = document.getElementById('parts-scanner-modal');
@@ -768,13 +827,12 @@ function initPartsLogic() {
         } else {
             DialogSystem.confirm("Part Not Found", "Barcode not recognized. Add as new part?").then(confirmed => {
                 if (confirmed) {
-                    // NEW FLOW: Auto-start location scanner with Skip option
                     pendingNewPartSku = val;
                     scannerTarget = 'new_part_location';
                     document.getElementById('parts-scanner-title').innerText = "Scan Location Label (Optional)";
                     document.getElementById('parts-skip-loc-btn').classList.remove('hidden');
                     scanModal.showModal();
-                    startScannerEngine(); // Bypass the "Start Camera" button completely
+                    startScannerEngine(); 
                 }
             });
         }
