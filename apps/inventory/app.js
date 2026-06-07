@@ -113,10 +113,10 @@ function initInventoryLogic() {
                 </div>
                 <div class="app-table-container">
                     <table class="app-table">
-                        <thead><tr><th>Actions</th><th>SKU</th><th>Vendor Item ID</th><th>Item Name</th><th>Category</th><th>Location</th><th>Qty on Hand</th><th>Reorder Level</th><th>Target Qty</th></tr></thead>
+                        <thead><tr><th>Actions</th><th style="width: 70px; text-align: center;">Img</th><th>SKU</th><th>Vendor Item ID</th><th>Item Name</th><th>Category</th><th>Location</th><th>Qty on Hand</th><th>Reorder Level</th><th>Target Qty</th></tr></thead>
                         <tbody id="inv-dash-body">`;
             
-            if (invData.items.length === 0) { html += `<tr><td colspan="9" style="text-align:center;">No items found. Import a CSV or add manually.</td></tr>`; } 
+            if (invData.items.length === 0) { html += `<tr><td colspan="10" style="text-align:center;">No items found. Import a CSV or add manually.</td></tr>`; } 
             else {
                 invData.items.forEach(item => {
                     const qty = getCurrentQty(item.sku);
@@ -124,13 +124,17 @@ function initInventoryLogic() {
                     if (qty <= 0) rowClass = 'inv-row-danger';
                     else if (qty <= item.reorderLevel) rowClass = 'inv-row-warning';
 
-                    // Transform Vendor ID into a clickable link if a URL exists
                     const vendorHtml = item.vendorUrl 
                         ? `<a href="${item.vendorUrl}" target="_blank" style="color: var(--accent-primary); text-decoration: underline; font-weight: bold;">${item.vendorId || 'Web Link'}</a>` 
                         : `<span style="color: var(--text-secondary);">${item.vendorId || '--'}</span>`;
 
+                    const imgHtml = item.imageUrl 
+                        ? `<img src="${item.imageUrl}" class="inv-media-thumb">` 
+                        : `<div class="inv-media-thumb" style="display:flex; align-items:center; justify-content:center; background:#eee; color:#999; font-size:0.8rem;">No Img</div>`;
+
                     html += `<tr class="${rowClass}">
                                 <td><button class="btn-outline inv-edit-btn" data-sku="${item.sku}" style="padding: 4px 8px; font-size: 0.8rem;">✏️ Edit</button></td>
+                                <td>${imgHtml}</td>
                                 <td><strong>${item.sku}</strong></td>
                                 <td style="font-size: 0.85rem;">${vendorHtml}</td>
                                 <td>${item.name}</td><td>${item.category || ''}</td><td>${item.location || ''}</td>
@@ -159,6 +163,7 @@ function initInventoryLogic() {
                     document.getElementById('edit-loc').value = item.location || '';
                     document.getElementById('edit-vendor').value = item.vendorId || '';
                     document.getElementById('edit-vendor-url').value = item.vendorUrl || '';
+                    document.getElementById('edit-img').value = item.imageUrl || '';
                     document.getElementById('edit-reorder').value = item.reorderLevel;
                     document.getElementById('edit-target').value = item.targetQty;
                     document.getElementById('edit-cost').value = item.unitCost || 0;
@@ -642,7 +647,7 @@ function initInventoryLogic() {
                 if(e.target.files.length > 0) {
                     Papa.parse(e.target.files[0], { header: true, skipEmptyLines: true, complete: function(results) {
                         const newItems = results.data.map(row => { return {
-                            sku: row['SKU'] || '', name: row['Item Name'] || '', vendor: row['Vendor'] || '', desc: row['Description'] || '', category: row['Category'] || '', location: row['Location'] || '', vendorId: row['Vendor Item ID'] || '', vendorUrl: row['Vendor URL'] || '',
+                            sku: row['SKU'] || '', name: row['Item Name'] || '', vendor: row['Vendor'] || '', desc: row['Description'] || '', category: row['Category'] || '', location: row['Location'] || '', vendorId: row['Vendor Item ID'] || '', vendorUrl: row['Vendor URL'] || '', imageUrl: row['Image URL'] || '',
                             unitCost: parseFloat((row['Unit Cost'] || '0').replace(/[^0-9.-]+/g,"")), reorderLevel: parseInt(row['Reorder Level'] || 0), targetQty: parseInt(row['Target Qty'] || 0)
                         };}).filter(i => i.sku !== '');
                         invData.items = newItems; safeSave();
@@ -705,7 +710,7 @@ function initInventoryLogic() {
         if(invData.items.find(i => i.sku === sku)) return NotificationSystem.show('SKU already exists!', 'error');
         
         invData.items.push({
-            sku: sku, name: document.getElementById('new-name').value, category: document.getElementById('new-cat').value, location: document.getElementById('new-loc').value, vendorId: document.getElementById('new-vendor').value, vendorUrl: document.getElementById('new-vendor-url').value,
+            sku: sku, name: document.getElementById('new-name').value, category: document.getElementById('new-cat').value, location: document.getElementById('new-loc').value, vendorId: document.getElementById('new-vendor').value, vendorUrl: document.getElementById('new-vendor-url').value, imageUrl: document.getElementById('new-img').value,
             reorderLevel: parseFloat(document.getElementById('new-reorder').value), targetQty: parseFloat(document.getElementById('new-target').value), unitCost: parseFloat(document.getElementById('new-cost').value)
         });
         
@@ -739,6 +744,7 @@ function initInventoryLogic() {
                 location: document.getElementById('edit-loc').value, 
                 vendorId: document.getElementById('edit-vendor').value,
                 vendorUrl: document.getElementById('edit-vendor-url').value,
+                imageUrl: document.getElementById('edit-img').value,
                 reorderLevel: parseFloat(document.getElementById('edit-reorder').value), 
                 targetQty: parseFloat(document.getElementById('edit-target').value), 
                 unitCost: parseFloat(document.getElementById('edit-cost').value)

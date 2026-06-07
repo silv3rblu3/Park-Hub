@@ -14,6 +14,9 @@ function renderInventoryApp() {
         .inv-row-danger { background-color: rgba(231, 76, 60, 0.1) !important; }
         .inv-row-warning { background-color: rgba(243, 156, 18, 0.1) !important; }
         
+        /* Thumbnail Styling */
+        .inv-media-thumb { width: 50px; height: 50px; object-fit: cover; border-radius: 4px; border: 1px solid var(--border-color); cursor: pointer; }
+        
         .inv-print-only { display: none !important; }
         .inv-no-print { display: block; }
         
@@ -69,6 +72,9 @@ function renderInventoryApp() {
                 
                 <label>Vendor Web Link (URL)</label>
                 <input type="url" id="new-vendor-url" class="app-input" placeholder="https://www.vendor.com/item...">
+
+                <label>Image URL</label>
+                <input type="url" id="new-img" class="app-input" placeholder="Optional image link">
                 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; margin-top: 15px;">
                     <div><label>Target Quantity (Pars)</label><input type="number" id="new-target" class="app-input" placeholder="100" required></div>
@@ -103,6 +109,9 @@ function renderInventoryApp() {
                 
                 <label>Vendor Web Link (URL)</label>
                 <input type="url" id="edit-vendor-url" class="app-input" placeholder="https://www.vendor.com/item...">
+
+                <label>Image URL</label>
+                <input type="url" id="edit-img" class="app-input" placeholder="Optional image link">
                 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; margin-top: 15px;">
                     <div><label>Target Quantity (Pars)</label><input type="number" id="edit-target" class="app-input" required></div>
