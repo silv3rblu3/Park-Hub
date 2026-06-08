@@ -19,6 +19,7 @@ function initPartsLogic() {
     const mainTabs = document.querySelectorAll('.parts-main-tab');
     mainTabs.forEach(tab => {
         tab.addEventListener('click', (e) => {
+            // Update visual active state of tabs
             mainTabs.forEach(t => { t.classList.remove('btn-primary'); t.classList.add('btn-outline'); });
             e.target.classList.remove('btn-outline'); e.target.classList.add('btn-primary');
             
@@ -908,16 +909,23 @@ function initPartsLogic() {
 
     startBtn.onclick = startScannerEngine;
 
+    // UPDATED: Dual-try fallback for Flashlight
     torchBtn.onclick = async () => {
-        if (partsHtml5QrCode && partsHtml5QrCode.getState() === 2) { 
+        if (partsHtml5QrCode) { 
             partsTorchOn = !partsTorchOn;
             try {
                 await partsHtml5QrCode.applyVideoConstraints({ advanced: [{ torch: partsTorchOn }] });
                 torchBtn.style.backgroundColor = partsTorchOn ? '#f39c12' : 'transparent';
                 torchBtn.style.color = partsTorchOn ? 'white' : '#f39c12';
             } catch (err) {
-                NotificationSystem.show("Flashlight not supported.", "error");
-                partsTorchOn = false;
+                try {
+                    await partsHtml5QrCode.applyVideoConstraints({ torch: partsTorchOn });
+                    torchBtn.style.backgroundColor = partsTorchOn ? '#f39c12' : 'transparent';
+                    torchBtn.style.color = partsTorchOn ? 'white' : '#f39c12';
+                } catch (err2) {
+                    NotificationSystem.show("Flashlight not supported by this camera/browser.", "error");
+                    partsTorchOn = false;
+                }
             }
         }
     };

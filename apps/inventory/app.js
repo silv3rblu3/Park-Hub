@@ -33,19 +33,6 @@ function initInventoryLogic() {
         return qty;
     };
 
-    const getReorderList = () => {
-        let reorderList = [];
-        invData.items.forEach(item => {
-            const currentQty = getCurrentQty(item.sku);
-            if (currentQty <= item.reorderLevel) {
-                let orderAmount = item.targetQty - currentQty;
-                if (orderAmount < 0) orderAmount = 0;
-                reorderList.push({ sku: item.sku, itemName: item.name, currentQty: currentQty, qtyToOrder: orderAmount });
-            }
-        });
-        return reorderList;
-    };
-
     const addTransaction = (type, sku, quantity, notes) => {
         const item = invData.items.find(i => i.sku === sku);
         if (!item) return false;
@@ -191,23 +178,51 @@ function initInventoryLogic() {
                         <button type="submit" class="btn-primary" style="width: 100%;">Submit Transaction</button>
                     </form>
                 </div>
+                
                 <div class="app-card">
-                    <h3 style="margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">Recent Transactions</h3>
-                    <div class="app-table-container" style="max-height: 400px; overflow-y: auto;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; flex-wrap: wrap; gap: 10px;">
+                        <h3 style="margin: 0;">Transaction Log</h3>
+                        <input type="text" id="inv-trans-search" class="app-input" placeholder="Search Item, SKU, Category..." style="max-width: 300px; margin: 0;">
+                    </div>
+                    <div class="app-table-container" style="max-height: 500px; overflow-y: auto;">
                         <table class="app-table">
-                            <thead><tr><th>Date</th><th>Type</th><th>Item</th><th>Qty</th></tr></thead>
-                            <tbody>`;
-            const recent = [...invData.transactions].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 50);
-            if (recent.length === 0) { html += `<tr><td colspan="4" style="text-align:center;">No recent transactions.</td></tr>`; } 
+                            <thead><tr><th>Date</th><th>Type</th><th>SKU</th><th>Item Name</th><th>Category</th><th style="text-align: right;">Qty</th></tr></thead>
+                            <tbody id="inv-trans-body">`;
+            
+            // Increased to 300 limits to make search more useful
+            const recent = [...invData.transactions].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 300);
+            if (recent.length === 0) { html += `<tr><td colspan="6" style="text-align:center;">No recent transactions.</td></tr>`; } 
             else {
                 recent.forEach(t => {
-                    const iName = invData.items.find(i => i.sku === t.sku)?.name || 'Unknown';
-                    html += `<tr><td>${new Date(t.date).toLocaleString([], {month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit'})}</td>
-                             <td>${t.type}</td><td>${iName}</td><td>${t.type === 'Audit Correction' ? '' : (t.type === 'Stock In' ? '+' : '-')}${t.quantity}</td></tr>`;
+                    const item = invData.items.find(i => i.sku === t.sku) || {};
+                    const iName = item.name || 'Unknown';
+                    const iCat = item.category || '--';
+                    
+                    let qtyStyle = '';
+                    if (t.type === 'Stock Out') qtyStyle = 'color: var(--danger-color);';
+                    else if (t.type === 'Stock In') qtyStyle = 'color: var(--accent-primary);';
+
+                    let qtyPrefix = t.type === 'Audit Correction' ? '' : (t.type === 'Stock In' ? '+' : '-');
+
+                    html += `<tr>
+                                <td>${new Date(t.date).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</td>
+                                <td>${t.type}</td>
+                                <td><strong>${t.sku}</strong></td>
+                                <td>${iName}</td>
+                                <td style="font-size: 0.85rem; color: var(--text-secondary);">${iCat}</td>
+                                <td style="text-align: right;"><strong style="${qtyStyle}">${qtyPrefix}${t.quantity}</strong></td>
+                             </tr>`;
                 });
             }
             html += `</tbody></table></div></div></div>`;
             stage.innerHTML = html;
+
+            // Live Search Filter for Transactions
+            document.getElementById('inv-trans-search').addEventListener('input', (e) => {
+                const term = e.target.value.toLowerCase();
+                const rows = document.querySelectorAll('#inv-trans-body tr');
+                rows.forEach(row => { row.style.display = row.innerText.toLowerCase().includes(term) ? '' : 'none'; });
+            });
 
             document.getElementById('inv-trans-form').addEventListener('submit', (e) => {
                 e.preventDefault();
@@ -318,7 +333,7 @@ function initInventoryLogic() {
                     { facingMode: "environment" }, 
                     { fps: 10, qrbox: { width: 250, height: 250 } },
                     (decodedText) => { loadAuditItem(decodedText.trim().toUpperCase()); },
-                    (err) => {} // Ignore frame errors
+                    (err) => {}
                 ).then(() => {
                     camControls.classList.remove('hidden');
                     html5QrCode.applyVideoConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {});
@@ -340,16 +355,23 @@ function initInventoryLogic() {
                 });
             });
 
+            // UPDATED: Dual-try fallback for Flashlight
             torchBtn.addEventListener('click', async () => {
-                if (html5QrCode && html5QrCode.getState() === 2) { 
+                if (html5QrCode) { 
                     torchOn = !torchOn;
                     try {
                         await html5QrCode.applyVideoConstraints({ advanced: [{ torch: torchOn }] });
                         torchBtn.style.backgroundColor = torchOn ? '#f39c12' : 'transparent';
                         torchBtn.style.color = torchOn ? 'white' : '#f39c12';
                     } catch (err) {
-                        NotificationSystem.show("Flashlight not supported by this camera/browser.", "error");
-                        torchOn = false;
+                        try {
+                            await html5QrCode.applyVideoConstraints({ torch: torchOn });
+                            torchBtn.style.backgroundColor = torchOn ? '#f39c12' : 'transparent';
+                            torchBtn.style.color = torchOn ? 'white' : '#f39c12';
+                        } catch (err2) {
+                            NotificationSystem.show("Flashlight not supported by this camera/browser.", "error");
+                            torchOn = false;
+                        }
                     }
                 }
             });
@@ -594,7 +616,6 @@ function initInventoryLogic() {
                 NotificationSystem.show('Inventory Sync File Exported', 'success');
             });
 
-            // UPDATED IMPORT LOGIC: Uses async/await to pause execution until confirmed
             document.getElementById('import-inv-json-file').addEventListener('change', async (e) => {
                 if(e.target.files.length > 0) {
                     const file = e.target.files[0];
