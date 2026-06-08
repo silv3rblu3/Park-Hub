@@ -489,62 +489,78 @@ function initFleetLogic() {
     document.getElementById('close-print-modal').addEventListener('click', () => printModal.close());
     
     document.getElementById('fleet-print-mode').addEventListener('change', (e) => {
-        document.getElementById('fleet-print-single-wrapper').classList.add('hidden'); document.getElementById('fleet-print-custom-wrapper').classList.add('hidden');
+        document.getElementById('fleet-print-single-wrapper').classList.add('hidden'); 
+        document.getElementById('fleet-print-custom-wrapper').classList.add('hidden');
         if(e.target.value === 'single') document.getElementById('fleet-print-single-wrapper').classList.remove('hidden');
         if(e.target.value === 'custom') document.getElementById('fleet-print-custom-wrapper').classList.remove('hidden');
+    });
+
+    // Disables the dropdown menu when "Blank Form" is checked
+    document.getElementById('fleet-print-blank').addEventListener('change', (e) => {
+        const modeSelect = document.getElementById('fleet-print-mode');
+        if (e.target.checked) {
+            modeSelect.disabled = true;
+            document.getElementById('fleet-print-single-wrapper').classList.add('hidden');
+            document.getElementById('fleet-print-custom-wrapper').classList.add('hidden');
+        } else {
+            modeSelect.disabled = false;
+            modeSelect.dispatchEvent(new Event('change'));
+        }
     });
 
     function populatePrintModal() {
         document.getElementById('fleet-print-single-select').innerHTML = fleetData.vehicles.map(v => `<option value="${v.id}">${v.id}</option>`).join('');
         document.getElementById('fleet-print-custom-wrapper').innerHTML = fleetData.vehicles.map(v => `<label style="display:block;"><input type="checkbox" class="pc-chk" value="${v.id}"> ${v.id}</label>`).join('');
         document.getElementById('fleet-print-blank').checked = false;
+        document.getElementById('fleet-print-mode').disabled = false;
+        document.getElementById('fleet-print-mode').value = 'all';
+        document.getElementById('fleet-print-mode').dispatchEvent(new Event('change'));
     }
 
     document.getElementById('fleet-execute-print').addEventListener('click', () => {
         const mode = document.getElementById('fleet-print-mode').value;
         const printBlank = document.getElementById('fleet-print-blank').checked;
-        let sels = [];
-        
-        if(mode === 'all') sels = fleetData.vehicles.map(v=>v.id);
-        else if(mode === 'single') sels = [document.getElementById('fleet-print-single-select').value];
-        else document.querySelectorAll('.pc-chk:checked').forEach(c => sels.push(c.value));
-
-        if(sels.length === 0 && !printBlank) return NotificationSystem.show("No vehicles selected", "error");
-
         let printHtml = '';
-        sels.forEach(vId => {
-            const vData = fleetData.vehicles.find(v => v.id === vId);
+
+        if (printBlank) {
+            // Generate EXACTLY ONE truly blank form
+            let blankHtml = `<div style="page-break-after:always; margin-bottom: 20px;"><h2 style="text-align:center; border-bottom:2px solid #000; padding-bottom: 10px;">Monthly Vehicle Inspection</h2>
+            <div style="display:grid; grid-template-columns:1fr 1fr; margin-bottom:15px; font-size:12px;"><div><strong>Vehicle:</strong> ________________</div><div><strong>Date:</strong> ________________</div><div><strong>Inspector:</strong> ________________</div><div><strong>Odometer:</strong> ________________</div></div>
+            <table style="width:100%; border-collapse:collapse; font-size:12px;"><thead><tr><th style="border:1px solid #000; background:#eee; padding:5px;">Item</th><th style="border:1px solid #000; background:#eee; padding:5px;">Result</th><th style="border:1px solid #000; background:#eee; padding:5px;">Item</th><th style="border:1px solid #000; background:#eee; padding:5px;">Result</th></tr></thead><tbody>`;
             
-            if (printBlank) {
-                let blankHtml = `<div style="page-break-after:always; margin-bottom: 20px;"><h2 style="text-align:center; border-bottom:2px solid #000; padding-bottom: 10px;">Monthly Vehicle Inspection</h2>
-                <div style="display:grid; grid-template-columns:1fr 1fr; margin-bottom:15px; font-size:12px;"><div><strong>Vehicle:</strong> ${vId} (${vData?vData.desc:''})</div><div><strong>Date:</strong> ________________</div><div><strong>Inspector:</strong> ________________</div><div><strong>Odometer:</strong> ________________</div></div>
-                <table style="width:100%; border-collapse:collapse; font-size:12px;"><thead><tr><th style="border:1px solid #000; background:#eee; padding:5px;">Item</th><th style="border:1px solid #000; background:#eee; padding:5px;">Result</th><th style="border:1px solid #000; background:#eee; padding:5px;">Item</th><th style="border:1px solid #000; background:#eee; padding:5px;">Result</th></tr></thead><tbody>`;
+            const cl = fleetData.settings.checklistItems;
+            for(let i=0; i<cl.length; i+=2) {
+                blankHtml += `<tr><td style="border:1px solid #000; padding:8px;">${cl[i]}</td><td style="border:1px solid #000; padding:8px;">Pass / Fail / NA</td>${cl[i+1] ? `<td style="border:1px solid #000; padding:8px;">${cl[i+1]}</td><td style="border:1px solid #000; padding:8px;">Pass / Fail / NA</td>` : `<td></td><td></td>`}</tr>`;
+            }
+            blankHtml += `</tbody></table></div>`;
+            printHtml += blankHtml;
+        } else {
+            let sels = [];
+            if(mode === 'all') sels = fleetData.vehicles.map(v=>v.id);
+            else if(mode === 'single') sels = [document.getElementById('fleet-print-single-select').value];
+            else document.querySelectorAll('.pc-chk:checked').forEach(c => sels.push(c.value));
+
+            if(sels.length === 0) return NotificationSystem.show("No vehicles selected", "error");
+
+            sels.forEach(vId => {
+                const vData = fleetData.vehicles.find(v => v.id === vId);
+                const insp = fleetData.inspections.filter(i => i.vehicleId === vId).sort((a,b) => new Date(b.date) - new Date(a.date))[0];
+                if(!insp) return;
                 
-                const cl = fleetData.settings.checklistItems;
-                for(let i=0; i<cl.length; i+=2) {
-                    blankHtml += `<tr><td style="border:1px solid #000; padding:8px;">${cl[i]}</td><td style="border:1px solid #000; padding:8px;">Pass / Fail / NA</td>${cl[i+1] ? `<td style="border:1px solid #000; padding:8px;">${cl[i+1]}</td><td style="border:1px solid #000; padding:8px;">Pass / Fail / NA</td>` : `<td></td><td></td>`}</tr>`;
+                let rowHtml = '';
+                if(insp.results) {
+                    const arr = Object.entries(insp.results);
+                    for(let i=0; i<arr.length; i+=2) {
+                        const i1 = arr[i]; const i2 = arr[i+1];
+                        rowHtml += `<tr><td style="border:1px solid #000; padding:5px;">${i1[0]}</td><td style="border:1px solid #000; padding:5px; font-weight:bold;">${i1[1]}</td>${i2 ? `<td style="border:1px solid #000; padding:5px;">${i2[0]}</td><td style="border:1px solid #000; padding:5px; font-weight:bold;">${i2[1]}</td>` : `<td></td><td></td>`}</tr>`;
+                    }
                 }
-                blankHtml += `</tbody></table></div>`;
-                printHtml += blankHtml;
-                return;
-            }
 
-            const insp = fleetData.inspections.filter(i => i.vehicleId === vId).sort((a,b) => new Date(b.date) - new Date(a.date))[0];
-            if(!insp) return;
-            
-            let rowHtml = '';
-            if(insp.results) {
-                const arr = Object.entries(insp.results);
-                for(let i=0; i<arr.length; i+=2) {
-                    const i1 = arr[i]; const i2 = arr[i+1];
-                    rowHtml += `<tr><td style="border:1px solid #000; padding:5px;">${i1[0]}</td><td style="border:1px solid #000; padding:5px; font-weight:bold;">${i1[1]}</td>${i2 ? `<td style="border:1px solid #000; padding:5px;">${i2[0]}</td><td style="border:1px solid #000; padding:5px; font-weight:bold;">${i2[1]}</td>` : `<td></td><td></td>`}</tr>`;
-                }
-            }
-
-            printHtml += `<div style="page-break-after:always; margin-bottom: 20px;"><h2 style="text-align:center; border-bottom:2px solid #000; padding-bottom:10px;">Monthly Vehicle Inspection</h2>
-            <div style="display:grid; grid-template-columns:1fr 1fr; margin-bottom:15px; font-size:12px;"><div><strong>Vehicle:</strong> ${vId} (${vData?vData.desc:''})</div><div><strong>Date:</strong> ${insp.date}</div><div><strong>Inspector:</strong> ${insp.inspector}</div><div><strong>Odometer:</strong> ${insp.odo}</div></div>
-            <table style="width:100%; border-collapse:collapse; font-size:12px;"><thead><tr><th style="border:1px solid #000; background:#eee; padding:5px;">Item</th><th style="border:1px solid #000; background:#eee; padding:5px;">Result</th><th style="border:1px solid #000; background:#eee; padding:5px;">Item</th><th style="border:1px solid #000; background:#eee; padding:5px;">Result</th></tr></thead><tbody>${rowHtml}</tbody></table></div>`;
-        });
+                printHtml += `<div style="page-break-after:always; margin-bottom: 20px;"><h2 style="text-align:center; border-bottom:2px solid #000; padding-bottom:10px;">Monthly Vehicle Inspection</h2>
+                <div style="display:grid; grid-template-columns:1fr 1fr; margin-bottom:15px; font-size:12px;"><div><strong>Vehicle:</strong> ${vId} (${vData?vData.desc:''})</div><div><strong>Date:</strong> ${insp.date}</div><div><strong>Inspector:</strong> ${insp.inspector}</div><div><strong>Odometer:</strong> ${insp.odo}</div></div>
+                <table style="width:100%; border-collapse:collapse; font-size:12px;"><thead><tr><th style="border:1px solid #000; background:#eee; padding:5px;">Item</th><th style="border:1px solid #000; background:#eee; padding:5px;">Result</th><th style="border:1px solid #000; background:#eee; padding:5px;">Item</th><th style="border:1px solid #000; background:#eee; padding:5px;">Result</th></tr></thead><tbody>${rowHtml}</tbody></table></div>`;
+            });
+        }
 
         if(!printHtml) return NotificationSystem.show("No records found to print", "error");
         
