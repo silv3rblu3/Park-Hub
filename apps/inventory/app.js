@@ -36,11 +36,23 @@ function initInventoryLogic() {
     const addTransaction = (type, sku, quantity, notes) => {
         const item = invData.items.find(i => i.sku === sku);
         if (!item) return false;
+        
+        // Calculate the physical total at the exact moment of transaction
+        const currentQty = getCurrentQty(sku);
+        const qtyNum = parseFloat(quantity);
+        let newTotal = currentQty;
+        
+        if (type === 'Stock In') newTotal += qtyNum;
+        else if (type === 'Stock Out') newTotal -= qtyNum;
+        else if (type === 'Audit Correction') newTotal = qtyNum;
+
         invData.transactions.push({
             id: crypto.randomUUID(),
             date: new Date().toISOString(),
-            sku: sku, type: type,
-            quantity: parseFloat(quantity),
+            sku: sku, 
+            type: type,
+            quantity: qtyNum,
+            newTotal: newTotal, // Snapshot the stock
             actualUnitCost: item.unitCost || 0,
             notes: notes || ''
         });
@@ -186,12 +198,11 @@ function initInventoryLogic() {
                     </div>
                     <div class="app-table-container" style="max-height: 500px; overflow-y: auto;">
                         <table class="app-table">
-                            <thead><tr><th>Date</th><th>Type</th><th>SKU</th><th>Item Name</th><th>Category</th><th style="text-align: right;">Qty</th></tr></thead>
+                            <thead><tr><th>Date</th><th>Type</th><th>SKU</th><th>Item Name</th><th>Category</th><th style="text-align: right;">Change</th><th style="text-align: right;">Total Stock</th></tr></thead>
                             <tbody id="inv-trans-body">`;
             
-            // Increased to 300 limits to make search more useful
             const recent = [...invData.transactions].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 300);
-            if (recent.length === 0) { html += `<tr><td colspan="6" style="text-align:center;">No recent transactions.</td></tr>`; } 
+            if (recent.length === 0) { html += `<tr><td colspan="7" style="text-align:center;">No recent transactions.</td></tr>`; } 
             else {
                 recent.forEach(t => {
                     const item = invData.items.find(i => i.sku === t.sku) || {};
@@ -202,7 +213,7 @@ function initInventoryLogic() {
                     if (t.type === 'Stock Out') qtyStyle = 'color: var(--danger-color);';
                     else if (t.type === 'Stock In') qtyStyle = 'color: var(--accent-primary);';
 
-                    let qtyPrefix = t.type === 'Audit Correction' ? '' : (t.type === 'Stock In' ? '+' : '-');
+                    let qtyPrefix = t.type === 'Audit Correction' ? 'To ' : (t.type === 'Stock In' ? '+' : '-');
 
                     html += `<tr>
                                 <td>${new Date(t.date).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</td>
@@ -211,13 +222,13 @@ function initInventoryLogic() {
                                 <td>${iName}</td>
                                 <td style="font-size: 0.85rem; color: var(--text-secondary);">${iCat}</td>
                                 <td style="text-align: right;"><strong style="${qtyStyle}">${qtyPrefix}${t.quantity}</strong></td>
+                                <td style="text-align: right; font-weight: bold; font-size: 1.1rem;">${t.newTotal !== undefined ? t.newTotal : '--'}</td>
                              </tr>`;
                 });
             }
             html += `</tbody></table></div></div></div>`;
             stage.innerHTML = html;
 
-            // Live Search Filter for Transactions
             document.getElementById('inv-trans-search').addEventListener('input', (e) => {
                 const term = e.target.value.toLowerCase();
                 const rows = document.querySelectorAll('#inv-trans-body tr');
@@ -355,7 +366,6 @@ function initInventoryLogic() {
                 });
             });
 
-            // UPDATED: Dual-try fallback for Flashlight
             torchBtn.addEventListener('click', async () => {
                 if (html5QrCode) { 
                     torchOn = !torchOn;
@@ -397,8 +407,9 @@ function initInventoryLogic() {
                 } else if (discrepancy < 0) {
                     addTransaction('Stock Out', sku, Math.abs(discrepancy), `Audit scan (System said ${sysQty}, Physical was ${physical})`);
                     NotificationSystem.show('Audit: Stock Out Logged', 'success');
-                } else {
-                    NotificationSystem.show('Count matches. No change made.', 'success');
+                } else if (discrepancy === 0) {
+                    addTransaction('Audit Correction', sku, physical, `Verified Count: Matched expected system stock.`);
+                    NotificationSystem.show('Count verified and logged.', 'success');
                 }
                 
                 formArea.classList.add('hidden'); 
@@ -428,7 +439,7 @@ function initInventoryLogic() {
                     <h3 style="margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">Yearly Usage & Spend Report</h3>
                     <p style="color: var(--text-secondary); margin-bottom: 15px;">Define a date range to calculate total item usage and financial restocking cost.</p>
                     
-                    <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 15px; align-items: flex-end;">
+                    <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 20px; align-items: flex-end;">
                         <div style="flex: 1; min-width: 150px;">
                             <label style="font-weight: bold; font-size: 0.9rem;">Start Date</label>
                             <input type="date" id="report-start" class="app-input" value="${lastYearStr}" style="margin-bottom: 0;">
@@ -438,10 +449,15 @@ function initInventoryLogic() {
                             <input type="date" id="report-end" class="app-input" value="${todayStr}" style="margin-bottom: 0;">
                         </div>
                         <button id="generate-report-btn" class="btn-primary" style="flex: 1; min-width: 150px; padding: 11px;">📊 Generate Report</button>
-                        <button id="print-report-btn" class="btn-outline hidden" style="flex: 1; min-width: 150px; padding: 11px;">🖨️ Print Report</button>
                     </div>
                     
-                    <div id="report-results-container" class="app-table-container hidden" style="margin-top: 20px; max-height: 400px; overflow-y: auto;"></div>
+                    <div id="inv-report-print-controls" class="hidden" style="display: flex; gap: 10px; margin-bottom: 20px; background: rgba(0,0,0,0.03); padding: 15px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+                        <button id="btn-inv-print-summary" class="btn-outline" style="flex: 1;">🖨️ Print Summary Only</button>
+                        <button id="btn-inv-print-log" class="btn-outline" style="flex: 1;">🖨️ Print Details Only</button>
+                        <button id="btn-inv-print-full" class="btn-primary" style="flex: 1;">🖨️ Print Full Report</button>
+                    </div>
+
+                    <div id="report-results-container" class="app-table-container hidden" style="margin-top: 20px; max-height: 500px; overflow-y: auto; padding-right: 5px;"></div>
                 </div>
 
                 <div class="app-card inv-no-print">
@@ -514,47 +530,60 @@ function initInventoryLogic() {
                     };
                 });
 
+                // Group transactions by item for the detailed view
+                let hasLogs = false;
+                const groupedTxns = {};
+
                 invData.transactions.forEach(t => {
                     const tDate = new Date(t.date);
-                    if (tDate >= startDate && tDate <= endDate && usageStats[t.sku]) {
-                        const qty = parseFloat(t.quantity);
+                    if (tDate >= startDate && tDate <= endDate) {
+                        hasLogs = true;
+                        if (!groupedTxns[t.sku]) groupedTxns[t.sku] = [];
+                        groupedTxns[t.sku].push(t);
                         
-                        if (t.type === 'Stock In') {
-                            usageStats[t.sku].added += qty;
-                            const cost = t.actualUnitCost || invData.items.find(i => i.sku === t.sku)?.unitCost || 0;
-                            usageStats[t.sku].totalSpend += (qty * cost);
-                        }
-                        if (t.type === 'Stock Out') {
-                            usageStats[t.sku].used += qty;
+                        // Process Summary Math
+                        if (usageStats[t.sku]) {
+                            const qty = parseFloat(t.quantity);
+                            if (t.type === 'Stock In') {
+                                usageStats[t.sku].added += qty;
+                                const cost = t.actualUnitCost || invData.items.find(i => i.sku === t.sku)?.unitCost || 0;
+                                usageStats[t.sku].totalSpend += (qty * cost);
+                            }
+                            if (t.type === 'Stock Out') {
+                                usageStats[t.sku].used += qty;
+                            }
                         }
                     }
                 });
 
-                let tableHtml = `
-                <table class="app-table">
-                    <thead>
-                        <tr>
-                            <th>SKU</th>
-                            <th>Item Name</th>
-                            <th>Category</th>
-                            <th style="text-align: center;">Used (-)</th>
-                            <th style="text-align: center;">Added (+)</th>
-                            <th style="text-align: right;">Total Spend</th>
-                            <th style="text-align: center;">Current Stock</th>
-                        </tr>
-                    </thead>
-                    <tbody>
+                // Generate Summary Table HTML
+                let summaryHtml = `
+                <div id="inv-report-section-summary">
+                    <h4 style="margin-bottom: 10px; color: var(--accent-primary);">Acquisition & Burn Summary</h4>
+                    <table class="app-table" style="margin-bottom: 30px;">
+                        <thead>
+                            <tr>
+                                <th>SKU</th>
+                                <th>Item Name</th>
+                                <th>Category</th>
+                                <th style="text-align: center;">Used (-)</th>
+                                <th style="text-align: center;">Added (+)</th>
+                                <th style="text-align: right;">Total Spend</th>
+                                <th style="text-align: center;">Current Stock</th>
+                            </tr>
+                        </thead>
+                        <tbody>
                 `;
                 
-                let hasData = false;
+                let hasSummary = false;
                 let grandTotalSpend = 0;
 
                 for (const sku in usageStats) {
                     if (usageStats[sku].added > 0 || usageStats[sku].used > 0) {
-                        hasData = true;
+                        hasSummary = true;
                         grandTotalSpend += usageStats[sku].totalSpend;
                         
-                        tableHtml += `
+                        summaryHtml += `
                             <tr>
                                 <td><strong>${sku}</strong></td>
                                 <td>${usageStats[sku].name}</td>
@@ -568,42 +597,113 @@ function initInventoryLogic() {
                     }
                 }
 
-                if (!hasData) {
-                    tableHtml += `<tr><td colspan="7" style="text-align: center;">No inventory activity found in this date range.</td></tr>`;
+                if (!hasSummary) {
+                    summaryHtml += `<tr><td colspan="7" style="text-align: center;">No inventory activity found in this date range.</td></tr>`;
                 }
                 
-                tableHtml += `
-                    </tbody>
-                    <tfoot>
-                        <tr style="background-color: rgba(0,0,0,0.05); border-top: 2px solid var(--border-color);">
-                            <td colspan="5" style="text-align: right; font-weight: bold; font-size: 1.1rem;">Grand Total Spend:</td>
-                            <td style="text-align: right; font-weight: bold; color: var(--danger-color); font-size: 1.1rem;">$${grandTotalSpend.toFixed(2)}</td>
-                            <td></td>
-                        </tr>
-                    </tfoot>
-                </table>`;
+                summaryHtml += `
+                        </tbody>
+                        <tfoot>
+                            <tr style="background-color: rgba(0,0,0,0.05); border-top: 2px solid var(--border-color);">
+                                <td colspan="5" style="text-align: right; font-weight: bold; font-size: 1.1rem;">Grand Total Spend:</td>
+                                <td style="text-align: right; font-weight: bold; color: var(--danger-color); font-size: 1.1rem;">$${grandTotalSpend.toFixed(2)}</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>`;
+
+
+                // Generate Detailed Grouped Logs HTML
+                let logHtml = `<div id="inv-report-section-log"><h4 style="margin-bottom: 10px; color: var(--accent-primary);">Detailed Audit & Transaction Log</h4>`;
+                
+                if (!hasLogs) {
+                    logHtml += `<p style="text-align:center;">No activity in this date range.</p></div>`;
+                } else {
+                    for (const sku in groupedTxns) {
+                        const item = invData.items.find(i => i.sku === sku);
+                        const iName = item ? item.name : 'Deleted Item';
+                        const iCat = item ? (item.category || 'Uncategorized') : '--';
+                        const currentQty = getCurrentQty(sku);
+                        
+                        logHtml += `
+                        <div style="margin-bottom: 20px; border: 1px solid var(--border-color); border-radius: var(--radius-md); overflow: hidden;">
+                            <div style="background: var(--bg-surface); padding: 10px; border-bottom: 2px solid var(--accent-primary); display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <strong style="font-size: 1.1rem;">${iName}</strong><br>
+                                    <span style="font-size: 0.85rem; color: var(--text-secondary);">SKU: ${sku} | Category: ${iCat}</span>
+                                </div>
+                            </div>
+                            <table class="app-table" style="margin: 0; border: none; border-radius: 0;">
+                                <thead><tr><th>Date</th><th>Type</th><th style="text-align:center;">Change</th><th style="text-align:center;">Stock at Time</th><th>Notes</th></tr></thead>
+                                <tbody>
+                        `;
+                        
+                        // Sort grouped transactions chronologically descending
+                        groupedTxns[sku].sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(txn => {
+                            const dateFmt = new Date(txn.date).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
+                            const isAudit = txn.type === 'Audit Correction';
+                            const rowClass = isAudit ? 'inv-row-danger' : '';
+                            let changeText = isAudit ? `To ${txn.quantity}` : (txn.type === 'Stock In' ? `+${txn.quantity}` : `-${txn.quantity}`);
+                            
+                            logHtml += `<tr class="${rowClass}">
+                                <td>${dateFmt}</td>
+                                <td>${txn.type}</td>
+                                <td style="text-align:center; font-weight:bold;">${changeText}</td>
+                                <td style="text-align:center; font-size: 1.1rem;"><strong>${txn.newTotal !== undefined ? txn.newTotal : '--'}</strong></td>
+                                <td style="font-size: 0.85rem;">${txn.notes || '--'}</td>
+                            </tr>`;
+                        });
+                        
+                        logHtml += `
+                                </tbody>
+                                <tfoot>
+                                    <tr style="background-color: rgba(0,0,0,0.02);">
+                                        <td colspan="5" style="text-align: right; padding: 10px;">
+                                            <strong>Current Stock for ${iName}: <span style="color: var(--accent-primary); font-size: 1.2rem; margin-left: 10px;">${currentQty}</span></strong>
+                                        </td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>`;
+                    }
+                    logHtml += `</div>`;
+                }
 
                 const resultsContainer = document.getElementById('report-results-container');
-                resultsContainer.innerHTML = tableHtml;
+                resultsContainer.innerHTML = summaryHtml + logHtml;
                 resultsContainer.classList.remove('hidden');
-                document.getElementById('print-report-btn').classList.remove('hidden');
+                document.getElementById('inv-report-print-controls').classList.remove('hidden');
             });
 
-            document.getElementById('print-report-btn').addEventListener('click', () => {
+            // Target Printing Logic
+            function executeInvReportPrint(mode) {
                 const start = document.getElementById('report-start').value;
                 const end = document.getElementById('report-end').value;
-                const tableHtml = document.getElementById('report-results-container').innerHTML;
+                const sumEl = document.getElementById('inv-report-section-summary');
+                const logEl = document.getElementById('inv-report-section-log');
                 
+                if(!sumEl || !logEl) return;
+                
+                let content = '';
+                if (mode === 'summary') content = sumEl.outerHTML;
+                else if (mode === 'log') content = logEl.outerHTML;
+                else content = sumEl.outerHTML + '<br>' + logEl.outerHTML;
+
                 const printStage = document.getElementById('inv-print-stage');
                 printStage.innerHTML = `
                     <div style="margin-bottom: 20px; border-bottom: 2px solid black; padding-bottom: 10px;">
                         <h2 style="margin-bottom: 5px;">Inventory Usage & Spend Report</h2>
                         <p style="font-size: 1.1rem;"><strong>Date Range:</strong> ${start} to ${end}</p>
                     </div>
-                    ${tableHtml}
+                    ${content}
                 `;
                 window.print();
-            });
+            }
+
+            document.getElementById('btn-inv-print-summary').onclick = () => executeInvReportPrint('summary');
+            document.getElementById('btn-inv-print-log').onclick = () => executeInvReportPrint('log');
+            document.getElementById('btn-inv-print-full').onclick = () => executeInvReportPrint('full');
 
             document.getElementById('export-inv-json-btn').addEventListener('click', () => {
                 const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(invData, null, 2));
@@ -660,7 +760,7 @@ function initInventoryLogic() {
                         }; 
                         reader.readAsText(file);
                     }
-                    e.target.value = ''; // Clears input so you can re-upload if needed
+                    e.target.value = ''; 
                 }
             });
 
@@ -674,7 +774,7 @@ function initInventoryLogic() {
                         invData.items = newItems; safeSave();
                         NotificationSystem.show('Master Items Imported!', 'success'); renderInvView('reports');
                     }});
-                    e.target.value = ''; // Clears input so you can re-upload if needed
+                    e.target.value = ''; 
                 }
             });
 
@@ -688,7 +788,7 @@ function initInventoryLogic() {
                         invData.transactions = newTrans; safeSave();
                         NotificationSystem.show('Transactions Imported!', 'success'); renderInvView('reports');
                     }});
-                    e.target.value = ''; // Clears input so you can re-upload if needed
+                    e.target.value = ''; 
                 }
             });
 
