@@ -3,13 +3,16 @@
 function renderPartsApp() {
     return `
     <style>
-        .part-media-thumb { width: 50px; height: 50px; object-fit: cover; border-radius: 4px; border: 1px solid var(--border-color); cursor: pointer; }
+        .part-media-thumb { width: 50px; height: 50px; object-fit: cover; border-radius: 4px; border: 1px solid var(--border-color); cursor: pointer; transition: transform 0.1s; }
+        .part-media-thumb:hover { transform: scale(1.1); box-shadow: 0 2px 8px rgba(0,0,0,0.3); z-index: 10; position: relative; }
+
         .critical-row { background-color: rgba(231, 76, 60, 0.1) !important; border-left: 4px solid var(--danger-color); }
         .audit-row-danger { color: var(--danger-color); font-weight: bold; }
         .low-stock-text { color: #f39c12; font-weight: bold; }
         .qty-btn { padding: 4px 10px; font-size: 1.1rem; font-weight: bold; border-radius: 4px; }
+        .row-ordered { opacity: 0.6; text-decoration: line-through; background-color: rgba(46, 204, 113, 0.05); }
         
-        #parts-scanner-modal::backdrop { background: rgba(0,0,0,0.85); }
+        #parts-scanner-modal::backdrop, #parts-lightbox-modal::backdrop { background: rgba(0,0,0,0.85); }
         .audit-key { font-size: 1.5rem; padding: 15px; font-weight: bold; border-radius: var(--radius-md); background: var(--bg-base); border: 1px solid var(--border-color); color: var(--text-primary); cursor: pointer; }
         .audit-key:active { background: var(--accent-primary); color: white; }
         
@@ -50,6 +53,7 @@ function renderPartsApp() {
 
             <div class="parts-tab-container" style="display: flex; gap: 10px; flex-wrap: wrap; width: 100%;">
                 <button class="parts-main-tab btn-primary" data-target="database" style="flex: 1; min-width: 110px;">📦 Database</button>
+                <button class="parts-main-tab btn-outline" data-target="shopping" style="flex: 1; min-width: 110px;">🛒 Shopping List</button>
                 <button class="parts-main-tab btn-outline" data-target="audit" style="flex: 1; min-width: 110px;">📋 Audit Mode</button>
                 <button class="parts-main-tab btn-outline" data-target="print" style="flex: 1; min-width: 110px;">🖨️ Print Labels</button>
                 <button class="parts-main-tab btn-outline" data-target="kits" style="flex: 1; min-width: 110px;">🧰 Kits</button>
@@ -87,6 +91,33 @@ function renderPartsApp() {
             </div>
         </div>
 
+        <div id="parts-view-shopping" class="app-card parts-no-print" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+                <div>
+                    <h3 style="margin: 0; color: var(--accent-primary);">🛒 Automated Shopping List</h3>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 5px;">Parts below Target Qty are listed automatically. Mark as 'Ordered' when purchased.</p>
+                </div>
+                <button id="parts-print-shopping-btn" class="btn-outline">🖨️ Print Shopping List</button>
+            </div>
+            <div class="app-table-container">
+                <table class="app-table">
+                    <thead><tr>
+                        <th style="width: 80px; text-align: center;">Ordered?</th>
+                        <th style="width: 70px; text-align: center;">Img</th>
+                        <th>SKU / ID</th>
+                        <th>Part Name</th>
+                        <th>Vendor Link</th>
+                        <th style="text-align: center;">Current Qty</th>
+                        <th style="text-align: center;">Target Qty</th>
+                        <th style="text-align: center; color: var(--danger-color);">Qty to Order</th>
+                        <th style="text-align: right;">Unit Price</th>
+                        <th style="text-align: right;">Total Price</th>
+                    </tr></thead>
+                    <tbody id="parts-shopping-body"></tbody>
+                </table>
+            </div>
+        </div>
+
         <div id="parts-view-kits" class="app-card parts-no-print" style="display: none;">
             <div style="padding: 15px; border-bottom: 1px solid var(--border-color); text-align: right;">
                 <button id="parts-create-kit-btn" class="btn-primary">+ Create New Kit</button>
@@ -121,7 +152,7 @@ function renderPartsApp() {
                         <button id="btn-print-full" class="btn-primary" style="flex: 1;">🖨️ Print Full Report</button>
                     </div>
 
-                    <div id="parts-report-results"></div>
+                    <div id="parts-report-results" class="app-table-container"></div>
                 </div>
 
                 <div class="app-card">
@@ -160,6 +191,7 @@ function renderPartsApp() {
                 <div style="display: flex; gap: 10px;">
                     <div style="flex: 1;"><label>Current Qty</label><input type="number" id="part-edit-qty" class="app-input"></div>
                     <div style="flex: 1;"><label>Min Reorder Qty</label><input type="number" id="part-edit-min" class="app-input"></div>
+                    <div style="flex: 1;"><label>Target Qty (Pars)</label><input type="number" id="part-edit-target" class="app-input"></div>
                 </div>
 
                 <label>Shop Location (Shelf/Bin)</label>
@@ -169,7 +201,7 @@ function renderPartsApp() {
                 </div>
                 
                 <div style="display: flex; gap: 10px;">
-                    <div style="flex: 2;"><label>Vendor URL</label><input type="text" id="part-edit-vendor-url" class="app-input" placeholder="https://..."></div>
+                    <div style="flex: 2;"><label>Vendor URL</label><input type="url" id="part-edit-vendor-url" class="app-input" placeholder="https://..."></div>
                     <div style="flex: 1;"><label>Last Price ($)</label><input type="number" step="0.01" id="part-edit-vendor-price" class="app-input"></div>
                 </div>
 
@@ -177,7 +209,7 @@ function renderPartsApp() {
                 <textarea id="part-edit-notes" class="app-input" rows="2" placeholder="Where it goes, what it connects to, or kit associations..."></textarea>
 
                 <label>Image URL</label>
-                <input type="text" id="part-edit-img" class="app-input" placeholder="Optional image link">
+                <input type="url" id="part-edit-img" class="app-input" placeholder="Optional image link">
 
                 <div style="margin: 15px 0; padding: 15px; background: rgba(0,0,0,0.03); border-radius: var(--radius-md); border: 1px solid var(--border-color);">
                     <label style="font-weight: bold; color: var(--danger-color); display: flex; align-items: center; gap: 10px;">
@@ -272,6 +304,13 @@ function renderPartsApp() {
                 
                 <button id="parts-start-scanner-btn" class="btn-outline" style="width: 100%; margin-bottom: 10px;">📷 Start Camera Scanner</button>
                 <button id="parts-skip-loc-btn" class="btn-outline hidden" style="width: 100%; margin-bottom: 10px;">⏭️ Skip Location Scan</button>
+            </div>
+        </dialog>
+
+        <dialog id="parts-lightbox-modal" style="padding: 0; border: none; border-radius: 8px; background: transparent; max-width: 90vw; max-height: 90vh;">
+            <div style="position: relative;">
+                <button id="parts-close-lightbox" class="btn-danger" style="position: absolute; top: -15px; right: -15px; border-radius: 50%; width: 35px; height: 35px; padding: 0; font-weight: bold; border: 2px solid white; z-index: 10; font-size: 1.2rem; cursor: pointer;">X</button>
+                <img id="parts-lightbox-img" src="" style="max-width: 100%; max-height: 85vh; border-radius: 8px; box-shadow: 0 5px 25px rgba(0,0,0,0.5); display: block;">
             </div>
         </dialog>
 

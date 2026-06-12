@@ -2,6 +2,10 @@
 
 function initPartsLogic() {
     let state = StateManager.getAppData('parts');
+    
+    // Ensure shopping state object exists for legacy data
+    if (!state.shoppingState) state.shoppingState = {};
+
     let activeMainTab = "database";
     let activeArea = "All Parts";
     
@@ -15,6 +19,18 @@ function initPartsLogic() {
     const lastMonth = new Date(); lastMonth.setMonth(lastMonth.getMonth() - 1);
     const lastMonthStr = lastMonth.toISOString().split('T')[0];
 
+    // --- Image Lightbox Listener ---
+    document.getElementById('parts-wrapper').addEventListener('click', (e) => {
+        if (e.target.classList.contains('part-media-thumb') && e.target.tagName === 'IMG') {
+            document.getElementById('parts-lightbox-img').src = e.target.src;
+            document.getElementById('parts-lightbox-modal').showModal();
+        }
+    });
+    
+    document.getElementById('parts-close-lightbox').addEventListener('click', () => {
+        document.getElementById('parts-lightbox-modal').close();
+    });
+
     // --- Main Tab Routing ---
     const mainTabs = document.querySelectorAll('.parts-main-tab');
     mainTabs.forEach(tab => {
@@ -27,6 +43,7 @@ function initPartsLogic() {
             
             // Hide all views initially
             document.getElementById('parts-view-database').style.display = 'none';
+            document.getElementById('parts-view-shopping').style.display = 'none';
             document.getElementById('parts-view-kits').style.display = 'none';
             document.getElementById('parts-view-reports').style.display = 'none';
             
@@ -39,6 +56,9 @@ function initPartsLogic() {
                 updatePrintUI();
                 renderAreaTabs();
                 renderTable();
+            } else if (activeMainTab === 'shopping') {
+                document.getElementById('parts-view-shopping').style.display = 'block';
+                renderShoppingList();
             } else if (activeMainTab === 'kits') {
                 document.getElementById('parts-view-kits').style.display = 'block';
                 renderKitsTable();
@@ -112,6 +132,12 @@ function initPartsLogic() {
                     </div>`;
             }
 
+            let vUrl = part.vendor?.url || '';
+            if (vUrl && !vUrl.startsWith('http')) vUrl = 'https://' + vUrl;
+            const vendorHtml = vUrl 
+                ? `<a href="${vUrl}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="display: inline-block; margin-top: 5px; color: var(--accent-primary); text-decoration: underline; font-weight: bold; font-size: 0.85rem;">🔗 Order More</a>` 
+                : '';
+
             const noteHtml = part.notes ? `<div style="font-size: 0.8rem; color: #888; margin-top: 4px; max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">📝 ${part.notes}</div>` : '';
 
             tr.innerHTML = `
@@ -121,7 +147,8 @@ function initPartsLogic() {
                 <td>${imgHtml}</td>
                 <td>
                     <strong style="cursor: pointer; color: var(--accent-primary);" class="edit-part-trigger" data-id="${part.id}">${part.name}</strong><br>
-                    <span style="font-size: 0.85rem; color: var(--text-secondary);">SKU: ${part.sku}</span>
+                    <span style="font-size: 0.85rem; color: var(--text-secondary);">SKU: ${part.sku}</span><br>
+                    ${vendorHtml}
                     ${noteHtml}
                 </td>
                 <td>${part.location || 'Unassigned'}</td>
@@ -134,6 +161,147 @@ function initPartsLogic() {
         });
     }
 
+    // --- Shopping List Logic ---
+    function renderShoppingList() {
+        const tbody = document.getElementById('parts-shopping-body');
+        tbody.innerHTML = '';
+
+        const partsToOrder = (state.partsCatalog || []).filter(p => {
+            const target = Number(p.targetQty) || 0;
+            return target > 0 && p.qty < target;
+        });
+
+        if (partsToOrder.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding: 20px;">All parts are at or above Target Qty!</td></tr>`;
+            return;
+        }
+
+        let grandTotal = 0;
+
+        partsToOrder.forEach(part => {
+            const targetQty = Number(part.targetQty) || 0;
+            const qtyToOrder = targetQty - part.qty;
+            const isOrdered = state.shoppingState[part.id] === true;
+            
+            const unitPrice = Number(part.vendor?.lastPrice) || 0;
+            const totalPrice = qtyToOrder * unitPrice;
+            grandTotal += totalPrice;
+            
+            const imgHtml = (part.media && part.media[0] && part.media[0].url) 
+                ? `<img src="${part.media[0].url}" class="part-media-thumb">` 
+                : `<div class="part-media-thumb" style="display:flex; align-items:center; justify-content:center; background:#eee; color:#999; font-size:0.8rem;">No Img</div>`;
+
+            let vUrl = part.vendor?.url || '';
+            if (vUrl && !vUrl.startsWith('http')) vUrl = 'https://' + vUrl;
+            const vendorHtml = vUrl 
+                ? `<a href="${vUrl}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="color: var(--accent-primary); text-decoration: underline; font-weight: bold;">Buy Link</a>` 
+                : `<span style="color: var(--text-secondary);">--</span>`;
+
+            const tr = document.createElement('tr');
+            if (isOrdered) tr.className = 'row-ordered';
+
+            tr.innerHTML = `
+                <td style="text-align: center;">
+                    <input type="checkbox" class="parts-shopping-cb" data-id="${part.id}" style="width: 25px; height: 25px; cursor: pointer;" ${isOrdered ? 'checked' : ''}>
+                </td>
+                <td>${imgHtml}</td>
+                <td><strong>${part.sku || part.id}</strong></td>
+                <td>${part.name}</td>
+                <td>${vendorHtml}</td>
+                <td style="text-align: center; font-size: 1.1rem;">${part.qty}</td>
+                <td style="text-align: center; color: var(--text-secondary);">${targetQty}</td>
+                <td style="text-align: center; font-size: 1.2rem; font-weight: bold; color: var(--danger-color);">${qtyToOrder}</td>
+                <td style="text-align: right;">$${unitPrice.toFixed(2)}</td>
+                <td style="text-align: right; font-weight: bold;">$${totalPrice.toFixed(2)}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        // Add the Footer for the Grand Total
+        const footerTr = document.createElement('tr');
+        footerTr.style = "background-color: rgba(0,0,0,0.05); border-top: 2px solid var(--border-color);";
+        footerTr.innerHTML = `
+            <td colspan="9" style="text-align: right; font-weight: bold; font-size: 1.1rem; padding: 15px;">Estimated Shopping Total:</td>
+            <td style="text-align: right; font-weight: bold; color: var(--danger-color); font-size: 1.1rem; padding: 15px;">$${grandTotal.toFixed(2)}</td>
+        `;
+        tbody.appendChild(footerTr);
+
+        // Checkbox events
+        document.querySelectorAll('.parts-shopping-cb').forEach(cb => {
+            cb.addEventListener('change', (e) => {
+                const id = e.target.getAttribute('data-id');
+                state.shoppingState[id] = e.target.checked;
+                StateManager.setAppData('parts', state);
+                
+                const row = e.target.closest('tr');
+                if (e.target.checked) row.classList.add('row-ordered');
+                else row.classList.remove('row-ordered');
+            });
+        });
+    }
+
+    document.getElementById('parts-print-shopping-btn').addEventListener('click', () => {
+        const partsToOrder = (state.partsCatalog || []).filter(p => {
+            const target = Number(p.targetQty) || 0;
+            return target > 0 && p.qty < target;
+        });
+        const printStage = document.getElementById('parts-report-print-stage');
+        
+        let cleanTableHtml = `<table class="app-table">
+            <thead><tr><th>SKU / ID</th><th>Img</th><th>Part Name</th><th>Vendor Link</th><th style="text-align:center;">Current Qty</th><th style="text-align:center;">Target Qty</th><th style="text-align:center;">Qty to Order</th><th style="text-align:right;">Unit Price</th><th style="text-align:right;">Total Price</th></tr></thead><tbody>`;
+        
+        let pGrandTotal = 0;
+        partsToOrder.forEach(part => {
+            const targetQty = Number(part.targetQty) || 0;
+            const qtyToOrder = targetQty - part.qty;
+            const isOrdered = state.shoppingState[part.id] === true;
+            
+            const unitPrice = Number(part.vendor?.lastPrice) || 0;
+            const totalPrice = qtyToOrder * unitPrice;
+            pGrandTotal += totalPrice;
+            
+            const orderMarker = isOrdered ? ` <strong style="color: green;">[ORDERED]</strong>` : '';
+            const printImgHtml = (part.media && part.media[0] && part.media[0].url) ? `<img src="${part.media[0].url}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px;">` : 'No Img';
+            
+            let vUrl = part.vendor?.url || '';
+            if (vUrl && !vUrl.startsWith('http')) vUrl = 'https://' + vUrl;
+            const printVendorHtml = vUrl ? `<a href="${vUrl}" target="_blank" rel="noopener noreferrer" style="color: blue; text-decoration: underline;">Buy Link</a>` : '--';
+
+            cleanTableHtml += `
+                <tr>
+                    <td><strong>${part.sku || part.id}</strong></td>
+                    <td>${printImgHtml}</td>
+                    <td>${part.name}${orderMarker}</td>
+                    <td>${printVendorHtml}</td>
+                    <td style="text-align: center;">${part.qty}</td>
+                    <td style="text-align: center;">${targetQty}</td>
+                    <td style="text-align: center; font-weight: bold;">${qtyToOrder}</td>
+                    <td style="text-align: right;">$${unitPrice.toFixed(2)}</td>
+                    <td style="text-align: right; font-weight: bold;">$${totalPrice.toFixed(2)}</td>
+                </tr>`;
+        });
+        
+        cleanTableHtml += `</tbody>
+        <tfoot>
+            <tr>
+                <td colspan="8" style="text-align: right; font-weight: bold; font-size: 1.1rem; padding: 10px;">Estimated Shopping Total:</td>
+                <td style="text-align: right; font-weight: bold; font-size: 1.1rem; padding: 10px;">$${pGrandTotal.toFixed(2)}</td>
+            </tr>
+        </tfoot>
+        </table>`;
+
+        document.getElementById('parts-print-container').innerHTML = ''; 
+        printStage.innerHTML = `
+            <div style="margin-bottom: 20px; border-bottom: 2px solid black; padding-bottom: 10px;">
+                <h2 style="margin-bottom: 5px;">Parts Shopping List</h2>
+                <p style="font-size: 1.1rem;"><strong>Generated:</strong> ${new Date().toLocaleDateString()}</p>
+            </div>
+            ${cleanTableHtml}
+        `;
+        window.print();
+    });
+
+
     // --- Adjust Quantity & Transactions ---
     function adjustQty(partId, amount, isAuditOverride = false, auditNote = '') {
         const partIdx = state.partsCatalog.findIndex(p => p.id === partId);
@@ -144,6 +312,12 @@ function initPartsLogic() {
         if (newQty < 0) newQty = 0;
         
         state.partsCatalog[partIdx].qty = newQty;
+        
+        // Auto-clear shopping state if target met
+        const target = Number(state.partsCatalog[partIdx].targetQty) || 0;
+        if (newQty >= target && state.shoppingState[partId]) {
+            state.shoppingState[partId] = false;
+        }
         
         if (!state.transactions) state.transactions = [];
         state.transactions.push({
@@ -159,6 +333,7 @@ function initPartsLogic() {
 
         StateManager.setAppData('parts', state);
         renderTable();
+        if (activeMainTab === 'shopping') renderShoppingList();
 
         if (newQty === 0 && state.partsCatalog[partIdx].substituteId) {
             const sub = state.partsCatalog.find(p => p.id === state.partsCatalog[partIdx].substituteId);
@@ -190,7 +365,7 @@ function initPartsLogic() {
                 <label style="display:flex; align-items:center; gap:5px; padding:5px; background:rgba(0,0,0,0.03); border-radius:4px;">
                     <input type="checkbox" class="area-tag-cb" value="${val}" checked> ${val}
                 </label>`;
-            renderAreaTabs(); 
+            if (activeMainTab === 'database') renderAreaTabs(); 
         }
     };
 
@@ -211,6 +386,7 @@ function initPartsLogic() {
             document.getElementById('part-edit-sub').value = part.substituteId || '';
             document.getElementById('part-edit-qty').value = part.qty;
             document.getElementById('part-edit-min').value = part.minQty;
+            document.getElementById('part-edit-target').value = part.targetQty || 0;
             document.getElementById('part-edit-loc').value = part.location || '';
             document.getElementById('part-edit-vendor-url').value = part.vendor?.url || '';
             document.getElementById('part-edit-vendor-price').value = part.vendor?.lastPrice || '';
@@ -225,7 +401,7 @@ function initPartsLogic() {
         } else {
             document.getElementById('parts-editor-title').innerText = "Add New Part";
             document.getElementById('part-edit-id').value = 'part_' + Date.now() + Math.random().toString(36).substr(2, 9);
-            ['name', 'sku', 'sub', 'qty', 'min', 'loc', 'vendor-url', 'vendor-price', 'notes', 'img'].forEach(id => document.getElementById(`part-edit-${id}`).value = '');
+            ['name', 'sku', 'sub', 'qty', 'min', 'target', 'loc', 'vendor-url', 'vendor-price', 'notes', 'img'].forEach(id => document.getElementById(`part-edit-${id}`).value = '');
             document.getElementById('part-edit-critical').checked = false;
             document.getElementById('part-delete-btn').style.display = 'none';
         }
@@ -244,6 +420,7 @@ function initPartsLogic() {
             substituteId: document.getElementById('part-edit-sub').value,
             qty: Number(document.getElementById('part-edit-qty').value || 0),
             minQty: Number(document.getElementById('part-edit-min').value || 0),
+            targetQty: Number(document.getElementById('part-edit-target').value || 0), 
             location: document.getElementById('part-edit-loc').value,
             notes: document.getElementById('part-edit-notes').value,
             isCritical: document.getElementById('part-edit-critical').checked,
@@ -285,7 +462,8 @@ function initPartsLogic() {
 
         StateManager.setAppData('parts', state);
         editorModal.close();
-        renderTable();
+        if (activeMainTab === 'database' || activeMainTab === 'audit' || activeMainTab === 'print') renderTable();
+        if (activeMainTab === 'shopping') renderShoppingList();
         NotificationSystem.show("Part Saved");
     };
 
@@ -299,7 +477,8 @@ function initPartsLogic() {
             });
             StateManager.setAppData('parts', state);
             editorModal.close();
-            renderTable();
+            if (activeMainTab === 'database' || activeMainTab === 'audit' || activeMainTab === 'print') renderTable();
+            if (activeMainTab === 'shopping') renderShoppingList();
             NotificationSystem.show("Part Deleted");
         }
     };
@@ -522,21 +701,19 @@ function initPartsLogic() {
             usageStats[i.id] = { name: i.name, currentQty: i.qty, added: 0, used: 0, totalSpend: 0, totalUsedValue: 0, cost: Number(i.vendor?.lastPrice) || 0 };
         });
 
-        let logHtml = `<div id="report-section-log"><h4 style="margin-bottom: 10px; color: var(--accent-primary);">Detailed Audit & Transaction Log</h4>
-            <table class="app-table">
-            <thead><tr><th>Date</th><th>Type</th><th>Part Name</th><th>Change</th><th>Notes</th></tr></thead><tbody>`;
         let hasLogs = false;
-
-        (state.transactions || []).sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp)).forEach(txn => {
+        
+        // Group transactions by Part ID
+        const groupedTxns = {};
+        (state.transactions || []).forEach(txn => {
             const tDate = new Date(txn.timestamp);
             if (tDate >= startDate && tDate <= endDate) {
+                if (!groupedTxns[txn.partId]) groupedTxns[txn.partId] = [];
+                groupedTxns[txn.partId].push(txn);
                 hasLogs = true;
-                const part = state.partsCatalog.find(p => p.id === txn.partId);
-                const pName = part ? part.name : 'Deleted Part';
-                
+
                 if (usageStats[txn.partId]) {
                     const cost = usageStats[txn.partId].cost;
-                    
                     if (txn.type === 'Add') {
                         usageStats[txn.partId].added += txn.qtyChange;
                         usageStats[txn.partId].totalSpend += (txn.qtyChange * cost);
@@ -553,28 +730,68 @@ function initPartsLogic() {
                         }
                     }
                 }
-
-                const dateFmt = tDate.toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
-                const isAudit = txn.type === 'Audit';
-                const rowClass = isAudit ? 'audit-row-danger' : '';
-                
-                let changeText = '';
-                if (isAudit) changeText = `Old: ${txn.oldTotal || '?'} → New: ${txn.newTotal || '?'}`;
-                else changeText = txn.qtyChange > 0 ? `+${txn.qtyChange}` : txn.qtyChange;
-
-                logHtml += `<tr class="${rowClass}">
-                    <td>${dateFmt}</td>
-                    <td>${txn.type}</td>
-                    <td>${pName}</td>
-                    <td>${changeText}</td>
-                    <td style="font-size: 0.85rem;">${txn.note || '--'}</td>
-                </tr>`;
             }
         });
-        
-        if(!hasLogs) logHtml += `<tr><td colspan="5" style="text-align:center;">No activity in this date range.</td></tr>`;
-        logHtml += `</tbody></table></div>`;
 
+        // Generate Detail Block
+        let logHtml = `<div id="report-section-log"><h4 style="margin-bottom: 10px; color: var(--accent-primary);">Detailed Audit & Transaction Log</h4>`;
+        
+        if (!hasLogs) {
+            logHtml += `<p style="text-align:center;">No activity in this date range.</p></div>`;
+        } else {
+            for (const partId in groupedTxns) {
+                const part = state.partsCatalog.find(p => p.id === partId);
+                const pName = part ? part.name : 'Deleted Part';
+                const pSku = part ? part.sku : 'Unknown SKU';
+                const currentQty = part ? part.qty : 0;
+                
+                logHtml += `
+                <div style="margin-bottom: 20px; border: 1px solid var(--border-color); border-radius: var(--radius-md); overflow: hidden;">
+                    <div style="background: var(--bg-surface); padding: 10px; border-bottom: 2px solid var(--accent-primary); display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong style="font-size: 1.1rem;">${pName}</strong><br>
+                            <span style="font-size: 0.85rem; color: var(--text-secondary);">SKU: ${pSku}</span>
+                        </div>
+                    </div>
+                    <table class="app-table" style="margin: 0; border: none; border-radius: 0;">
+                        <thead><tr><th>Date</th><th>Type</th><th style="text-align:center;">Change</th><th style="text-align:center;">Stock at Time</th><th>Notes</th></tr></thead>
+                        <tbody>
+                `;
+                
+                groupedTxns[partId].sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp)).forEach(txn => {
+                    const dateFmt = new Date(txn.timestamp).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
+                    const isAudit = txn.type === 'Audit';
+                    const rowClass = isAudit ? 'audit-row-danger' : '';
+                    
+                    let changeText = '';
+                    if (isAudit) changeText = `To ${txn.newTotal !== undefined ? txn.newTotal : '?'}`;
+                    else changeText = txn.qtyChange > 0 ? `+${txn.qtyChange}` : txn.qtyChange;
+                    
+                    logHtml += `<tr class="${rowClass}">
+                        <td>${dateFmt}</td>
+                        <td>${txn.type}</td>
+                        <td style="text-align:center; font-weight:bold;">${changeText}</td>
+                        <td style="text-align:center; font-size: 1.1rem;"><strong>${txn.newTotal !== undefined ? txn.newTotal : '--'}</strong></td>
+                        <td style="font-size: 0.85rem;">${txn.note || '--'}</td>
+                    </tr>`;
+                });
+                
+                logHtml += `
+                        </tbody>
+                        <tfoot>
+                            <tr style="background-color: rgba(0,0,0,0.02);">
+                                <td colspan="5" style="text-align: right; padding: 10px;">
+                                    <strong>Current Stock for ${pName}: <span style="color: var(--accent-primary); font-size: 1.2rem; margin-left: 10px;">${currentQty}</span></strong>
+                                </td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>`;
+            }
+            logHtml += `</div>`;
+        }
+
+        // Generate Summary Block
         let sumHtml = `<div id="report-section-summary"><h4 style="margin-bottom: 10px; color: var(--accent-primary);">Acquisition & Burn Summary</h4>
             <table class="app-table" style="margin-bottom: 30px;">
                 <thead><tr><th>Part Name</th><th style="text-align:center;">Used / Missing (-)</th><th style="text-align:right;">Used Value</th><th style="text-align:center;">Acquired (+)</th><th style="text-align:right;">Acquired Spend</th></tr></thead><tbody>`;
@@ -721,6 +938,7 @@ function initPartsLogic() {
                         isCritical: String(row['Critical']).toLowerCase() === 'true',
                         qty: parseFloat((row['Qty'] || '0').replace(/[^0-9.-]+/g,"")), 
                         minQty: parseFloat((row['Min Qty'] || '0').replace(/[^0-9.-]+/g,"")), 
+                        targetQty: parseFloat((row['Target Qty'] || '0').replace(/[^0-9.-]+/g,"")), 
                         vendor: { url: row['Vendor URL'] || '', lastPrice: parseFloat((row['Cost'] || '0').replace(/[^0-9.-]+/g,"")) },
                         media: [{ type: "image", url: row['Image URL'] || '' }]
                     };
@@ -909,7 +1127,7 @@ function initPartsLogic() {
 
     startBtn.onclick = startScannerEngine;
 
-    // UPDATED: Dual-try fallback for Flashlight
+    // Dual-try fallback for Flashlight
     torchBtn.onclick = async () => {
         if (partsHtml5QrCode) { 
             partsTorchOn = !partsTorchOn;

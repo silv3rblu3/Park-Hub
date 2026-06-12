@@ -15,10 +15,15 @@ function initInventoryLogic() {
                 "Medical",
                 "Fishing Gear",
                 "Kitchen"
-            ]
+            ],
+            shoppingState: {}
         };
         StateManager.setAppData('inventory', invData);
     }
+    
+    // Ensure shopping state object exists for legacy data
+    if (!invData.shoppingState) invData.shoppingState = {};
+
     const safeSave = () => { StateManager.setAppData('inventory', invData); };
 
     // --- Core Logic ---
@@ -37,14 +42,21 @@ function initInventoryLogic() {
         const item = invData.items.find(i => i.sku === sku);
         if (!item) return false;
         
-        // Calculate the physical total at the exact moment of transaction
         const currentQty = getCurrentQty(sku);
         const qtyNum = parseFloat(quantity);
         let newTotal = currentQty;
         
-        if (type === 'Stock In') newTotal += qtyNum;
+        if (type === 'Stock In') {
+            newTotal += qtyNum;
+            if (invData.shoppingState[sku]) invData.shoppingState[sku] = false;
+        }
         else if (type === 'Stock Out') newTotal -= qtyNum;
-        else if (type === 'Audit Correction') newTotal = qtyNum;
+        else if (type === 'Audit Correction') {
+            newTotal = qtyNum;
+            if (newTotal >= Number(item.targetQty) && invData.shoppingState[sku]) {
+                invData.shoppingState[sku] = false;
+            }
+        }
 
         invData.transactions.push({
             id: crypto.randomUUID(),
@@ -52,12 +64,24 @@ function initInventoryLogic() {
             sku: sku, 
             type: type,
             quantity: qtyNum,
-            newTotal: newTotal, // Snapshot the stock
-            actualUnitCost: item.unitCost || 0,
+            newTotal: newTotal,
+            actualUnitCost: Number(item.unitCost) || 0,
             notes: notes || ''
         });
         safeSave(); return true;
     };
+
+    // --- Image Lightbox Listener ---
+    document.getElementById('inv-stage').addEventListener('click', (e) => {
+        if (e.target.classList.contains('inv-media-thumb') && e.target.tagName === 'IMG') {
+            document.getElementById('inv-lightbox-img').src = e.target.src;
+            document.getElementById('inv-lightbox-modal').showModal();
+        }
+    });
+    
+    document.getElementById('inv-close-lightbox').addEventListener('click', () => {
+        document.getElementById('inv-lightbox-modal').close();
+    });
 
     // --- Tab Routing ---
     const tabs = document.querySelectorAll('.inv-tab');
@@ -119,12 +143,17 @@ function initInventoryLogic() {
             else {
                 invData.items.forEach(item => {
                     const qty = getCurrentQty(item.sku);
+                    const target = Number(item.targetQty) || 0;
+                    const reorder = Number(item.reorderLevel) || 0;
+                    
                     let rowClass = '';
                     if (qty <= 0) rowClass = 'inv-row-danger';
-                    else if (qty <= item.reorderLevel) rowClass = 'inv-row-warning';
+                    else if (qty <= reorder) rowClass = 'inv-row-warning';
 
-                    const vendorHtml = item.vendorUrl 
-                        ? `<a href="${item.vendorUrl}" target="_blank" style="color: var(--accent-primary); text-decoration: underline; font-weight: bold;">${item.vendorId || 'Web Link'}</a>` 
+                    let vUrl = item.vendorUrl || '';
+                    if (vUrl && !vUrl.startsWith('http')) vUrl = 'https://' + vUrl;
+                    const vendorHtml = vUrl 
+                        ? `<a href="${vUrl}" target="_blank" rel="noopener noreferrer" style="color: var(--accent-primary); text-decoration: underline; font-weight: bold;">${item.vendorId || 'Web Link'}</a>` 
                         : `<span style="color: var(--text-secondary);">${item.vendorId || '--'}</span>`;
 
                     const imgHtml = item.imageUrl 
@@ -137,7 +166,7 @@ function initInventoryLogic() {
                                 <td><strong>${item.sku}</strong></td>
                                 <td style="font-size: 0.85rem;">${vendorHtml}</td>
                                 <td>${item.name}</td><td>${item.category || ''}</td><td>${item.location || ''}</td>
-                                <td style="font-size: 1.1rem; font-weight: bold;">${qty}</td><td>${item.reorderLevel}</td><td>${item.targetQty}</td>
+                                <td style="font-size: 1.1rem; font-weight: bold;">${qty}</td><td>${reorder}</td><td>${target}</td>
                              </tr>`;
                 });
             }
@@ -170,7 +199,163 @@ function initInventoryLogic() {
                     document.getElementById('inv-edit-modal').showModal();
                 });
             });
-        } 
+        }
+        else if (viewName === 'shopping') {
+            const itemsToOrder = invData.items.filter(i => {
+                const target = Number(i.targetQty) || 0;
+                const currentQty = getCurrentQty(i.sku);
+                return target > 0 && currentQty < target;
+            });
+
+            let html = `
+            <div class="app-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+                    <div>
+                        <h3 style="margin: 0; color: var(--accent-primary);">🛒 Automated Shopping List</h3>
+                        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 5px;">Items below Target Qty are listed automatically. Mark as 'Ordered' when purchased.</p>
+                    </div>
+                    <button id="inv-print-shopping-btn" class="btn-outline">🖨️ Print Shopping List</button>
+                </div>
+                
+                <div class="app-table-container">
+                    <table class="app-table" id="inv-shopping-table">
+                        <thead><tr>
+                            <th style="width: 80px; text-align: center;">Ordered?</th>
+                            <th style="width: 70px; text-align: center;">Img</th>
+                            <th>SKU</th>
+                            <th>Item Name</th>
+                            <th>Vendor Link</th>
+                            <th style="text-align: center;">Current Qty</th>
+                            <th style="text-align: center;">Target Qty</th>
+                            <th style="text-align: center; color: var(--danger-color);">Qty to Order</th>
+                            <th style="text-align: right;">Unit Price</th>
+                            <th style="text-align: right;">Total Price</th>
+                        </tr></thead>
+                        <tbody>`;
+            
+            if (itemsToOrder.length === 0) {
+                html += `<tr><td colspan="10" style="text-align:center; padding: 20px;">All items are at or above Target Qty!</td></tr>`;
+                html += `</tbody></table></div></div>`;
+            } else {
+                let grandTotal = 0;
+                itemsToOrder.forEach(item => {
+                    const targetQty = Number(item.targetQty) || 0;
+                    const currentQty = getCurrentQty(item.sku);
+                    const qtyToOrder = targetQty - currentQty;
+                    const isOrdered = invData.shoppingState[item.sku] === true;
+                    
+                    const unitPrice = Number(item.unitCost) || 0;
+                    const totalPrice = qtyToOrder * unitPrice;
+                    grandTotal += totalPrice;
+                    
+                    const imgHtml = item.imageUrl 
+                        ? `<img src="${item.imageUrl}" class="inv-media-thumb">` 
+                        : `<div class="inv-media-thumb" style="display:flex; align-items:center; justify-content:center; background:#eee; color:#999; font-size:0.8rem;">No Img</div>`;
+
+                    let vUrl = item.vendorUrl || '';
+                    if (vUrl && !vUrl.startsWith('http')) vUrl = 'https://' + vUrl;
+                    const vendorHtml = vUrl 
+                        ? `<a href="${vUrl}" target="_blank" rel="noopener noreferrer" style="color: var(--accent-primary); text-decoration: underline; font-weight: bold;">${item.vendorId || 'Buy Link'}</a>` 
+                        : `<span style="color: var(--text-secondary);">${item.vendorId || '--'}</span>`;
+
+                    html += `<tr class="${isOrdered ? 'row-ordered' : ''}">
+                                <td style="text-align: center;">
+                                    <input type="checkbox" class="inv-shopping-cb" data-sku="${item.sku}" style="width: 25px; height: 25px; cursor: pointer;" ${isOrdered ? 'checked' : ''}>
+                                </td>
+                                <td>${imgHtml}</td>
+                                <td><strong>${item.sku}</strong></td>
+                                <td>${item.name}</td>
+                                <td>${vendorHtml}</td>
+                                <td style="text-align: center; font-size: 1.1rem;">${currentQty}</td>
+                                <td style="text-align: center; color: var(--text-secondary);">${targetQty}</td>
+                                <td style="text-align: center; font-size: 1.2rem; font-weight: bold; color: var(--danger-color);">${qtyToOrder}</td>
+                                <td style="text-align: right;">$${unitPrice.toFixed(2)}</td>
+                                <td style="text-align: right; font-weight: bold;">$${totalPrice.toFixed(2)}</td>
+                             </tr>`;
+                });
+                html += `</tbody>
+                <tfoot>
+                    <tr style="background-color: rgba(0,0,0,0.05); border-top: 2px solid var(--border-color);">
+                        <td colspan="9" style="text-align: right; font-weight: bold; font-size: 1.1rem; padding: 15px;">Estimated Shopping Total:</td>
+                        <td style="text-align: right; font-weight: bold; color: var(--danger-color); font-size: 1.1rem; padding: 15px;">$${grandTotal.toFixed(2)}</td>
+                    </tr>
+                </tfoot>
+                </table></div></div>`;
+            }
+            stage.innerHTML = html;
+
+            document.querySelectorAll('.inv-shopping-cb').forEach(cb => {
+                cb.addEventListener('change', (e) => {
+                    const sku = e.target.getAttribute('data-sku');
+                    invData.shoppingState[sku] = e.target.checked;
+                    safeSave();
+                    
+                    const row = e.target.closest('tr');
+                    if (e.target.checked) row.classList.add('row-ordered');
+                    else row.classList.remove('row-ordered');
+                });
+            });
+
+            const printBtn = document.getElementById('inv-print-shopping-btn');
+            if (printBtn) {
+                printBtn.addEventListener('click', () => {
+                    const printStage = document.getElementById('inv-print-stage');
+                    
+                    let cleanTableHtml = `<table class="app-table">
+                        <thead><tr><th>SKU</th><th>Img</th><th>Item Name</th><th>Vendor Link</th><th style="text-align:center;">Current Qty</th><th style="text-align:center;">Target Qty</th><th style="text-align:center;">Qty to Order</th><th style="text-align:right;">Unit Price</th><th style="text-align:right;">Total Price</th></tr></thead><tbody>`;
+                    
+                    let pGrandTotal = 0;
+                    itemsToOrder.forEach(item => {
+                        const targetQty = Number(item.targetQty) || 0;
+                        const currentQty = getCurrentQty(item.sku);
+                        const qtyToOrder = targetQty - currentQty;
+                        const isOrdered = invData.shoppingState[item.sku] === true;
+                        
+                        const unitPrice = Number(item.unitCost) || 0;
+                        const totalPrice = qtyToOrder * unitPrice;
+                        pGrandTotal += totalPrice;
+                        
+                        const orderMarker = isOrdered ? ` <strong style="color: green;">[ORDERED]</strong>` : '';
+                        const printImgHtml = item.imageUrl ? `<img src="${item.imageUrl}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px;">` : 'No Img';
+                        
+                        let vUrl = item.vendorUrl || '';
+                        if (vUrl && !vUrl.startsWith('http')) vUrl = 'https://' + vUrl;
+                        const printVendorHtml = vUrl ? `<a href="${vUrl}" target="_blank" rel="noopener noreferrer" style="color: blue; text-decoration: underline;">${item.vendorId || 'Buy Link'}</a>` : (item.vendorId || '--');
+
+                        cleanTableHtml += `
+                            <tr>
+                                <td><strong>${item.sku}</strong></td>
+                                <td>${printImgHtml}</td>
+                                <td>${item.name}${orderMarker}</td>
+                                <td>${printVendorHtml}</td>
+                                <td style="text-align: center;">${currentQty}</td>
+                                <td style="text-align: center;">${targetQty}</td>
+                                <td style="text-align: center; font-weight: bold;">${qtyToOrder}</td>
+                                <td style="text-align: right;">$${unitPrice.toFixed(2)}</td>
+                                <td style="text-align: right; font-weight: bold;">$${totalPrice.toFixed(2)}</td>
+                            </tr>`;
+                    });
+                    
+                    cleanTableHtml += `</tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="8" style="text-align: right; font-weight: bold; font-size: 1.1rem; padding: 10px;">Estimated Shopping Total:</td>
+                            <td style="text-align: right; font-weight: bold; font-size: 1.1rem; padding: 10px;">$${pGrandTotal.toFixed(2)}</td>
+                        </tr>
+                    </tfoot>
+                    </table>`;
+
+                    printStage.innerHTML = `
+                        <div style="margin-bottom: 20px; border-bottom: 2px solid black; padding-bottom: 10px;">
+                            <h2 style="margin-bottom: 5px;">Inventory Shopping List</h2>
+                            <p style="font-size: 1.1rem;"><strong>Generated:</strong> ${new Date().toLocaleDateString()}</p>
+                        </div>
+                        ${cleanTableHtml}
+                    `;
+                    window.print();
+                });
+            }
+        }
         else if (viewName === 'transactions') {
             let html = `
             <div class="inv-split-layout">
@@ -536,7 +721,7 @@ function initInventoryLogic() {
 
                 invData.transactions.forEach(t => {
                     const tDate = new Date(t.date);
-                    if (tDate >= startDate && tDate <= endDate) {
+                    if (tDate >= startDate && tDate <= endDate && usageStats[t.sku]) {
                         hasLogs = true;
                         if (!groupedTxns[t.sku]) groupedTxns[t.sku] = [];
                         groupedTxns[t.sku].push(t);

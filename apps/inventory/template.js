@@ -13,9 +13,14 @@ function renderInventoryApp() {
         /* Functional States */
         .inv-row-danger { background-color: rgba(231, 76, 60, 0.1) !important; }
         .inv-row-warning { background-color: rgba(243, 156, 18, 0.1) !important; }
+        .row-ordered { opacity: 0.6; text-decoration: line-through; background-color: rgba(46, 204, 113, 0.05); }
         
         /* Thumbnail Styling */
-        .inv-media-thumb { width: 50px; height: 50px; object-fit: cover; border-radius: 4px; border: 1px solid var(--border-color); cursor: pointer; }
+        .inv-media-thumb { width: 50px; height: 50px; object-fit: cover; border-radius: 4px; border: 1px solid var(--border-color); cursor: pointer; transition: transform 0.1s; }
+        .inv-media-thumb:hover { transform: scale(1.1); box-shadow: 0 2px 8px rgba(0,0,0,0.3); z-index: 10; position: relative; }
+        
+        /* Lightbox Override */
+        #inv-lightbox-modal::backdrop { background: rgba(0,0,0,0.85); }
         
         .inv-print-only { display: none !important; }
         .inv-no-print { display: block; }
@@ -41,6 +46,7 @@ function renderInventoryApp() {
             
             <div class="inv-tab-container" style="display: flex; gap: 10px; flex-wrap: wrap; width: 100%;">
                 <button class="inv-tab btn-primary" data-target="dashboard" style="flex: 1; min-width: 130px;">📦 Dashboard</button>
+                <button class="inv-tab btn-outline" data-target="shopping" style="flex: 1; min-width: 130px;">🛒 Shopping List</button>
                 <button class="inv-tab btn-outline" data-target="transactions" style="flex: 1; min-width: 130px;">📝 Transactions</button>
                 <button class="inv-tab btn-outline" data-target="audit" style="flex: 1; min-width: 130px;">🔍 Audit Scanner</button>
                 <button class="inv-tab btn-outline" data-target="reports" style="flex: 1; min-width: 130px;">📊 Reports & Data</button>
@@ -125,6 +131,13 @@ function renderInventoryApp() {
                     <button type="submit" class="btn-primary" style="flex: 2;">💾 Update Item</button>
                 </div>
             </form>
+        </dialog>
+
+        <dialog id="inv-lightbox-modal" style="padding: 0; border: none; background: transparent; overflow: visible; outline: none; margin: auto;">
+            <div style="position: relative; display: inline-block;">
+                <button id="inv-close-lightbox" class="btn-danger" style="position: absolute; top: -15px; right: -15px; border-radius: 50%; width: 35px; height: 35px; padding: 0; font-weight: bold; border: 2px solid white; z-index: 100; font-size: 1.2rem; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.5);">X</button>
+                <img id="inv-lightbox-img" src="" style="max-width: 90vw; max-height: 90vh; object-fit: contain; border-radius: 8px; box-shadow: 0 5px 25px rgba(0,0,0,0.8); display: block; background: var(--bg-surface);">
+            </div>
         </dialog>
     </div>
     
