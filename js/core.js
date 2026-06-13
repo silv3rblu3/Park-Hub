@@ -45,25 +45,20 @@ const CoreSystem = {
         document.getElementById('global-settings-trigger').addEventListener('click', () => { this.populateThemeEditor(); settingsModal.showModal(); });
         document.getElementById('close-settings-btn').addEventListener('click', () => settingsModal.close());
 
-        // --- NEW SETTINGS TABS LOGIC ---
         const settingsTabs = document.querySelectorAll('.settings-tab');
         settingsTabs.forEach(tab => {
             tab.addEventListener('click', (e) => {
-                // Strip active styling from all tabs
                 settingsTabs.forEach(t => { 
                     t.classList.remove('btn-primary'); 
                     t.classList.add('btn-outline'); 
                 });
                 
-                // Forcing display style instead of relying on classes
                 document.getElementById('settings-view-theme').style.display = 'none';
                 document.getElementById('settings-view-sync').style.display = 'none';
                 
-                // Add active styling to the clicked tab
                 e.target.classList.remove('btn-outline');
                 e.target.classList.add('btn-primary');
                 
-                // Show the targeted content
                 const targetId = 'settings-view-' + e.target.getAttribute('data-target');
                 document.getElementById(targetId).style.display = 'block';
             });
@@ -144,16 +139,15 @@ const CoreSystem = {
             if (e.target.files.length === 0) return;
             const file = e.target.files[0];
             
-            let target = document.getElementById('sync-target-select').value; // Default to dropdown
+            let target = document.getElementById('sync-target-select').value; 
             
-            // Try to extract the module from the filename
             const fileNameParts = file.name.split('_');
             if (fileNameParts.length >= 2 && fileNameParts[1] === 'PMH') {
                 const prefix = fileNameParts[0].toLowerCase();
                 const targetMap = { 
                     'global': 'global', 'themes': 'themes', 'inventory': 'inventory', 
                     'fleet': 'fleet', 'winterization': 'winterization', 
-                    'firstaid': 'firstAid', 'parts': 'parts' 
+                    'firstaid': 'firstAid', 'parts': 'parts', 'projects': 'projects'
                 };
                 if (targetMap[prefix]) {
                     target = targetMap[prefix];
@@ -163,10 +157,9 @@ const CoreSystem = {
                 if (!proceed) { e.target.value = ''; return; }
             }
 
-            // Map internal target ID to display name for the prompt
             const displayNames = {
                 'global': 'Global Master (All Apps)', 'themes': 'Themes', 'inventory': 'Inventory Manager',
-                'fleet': 'Fleet Management', 'winterization': 'Winter Ops', 'firstAid': 'First Aid', 'parts': 'Replacement Parts'
+                'fleet': 'Fleet Management', 'winterization': 'Winter Ops', 'firstAid': 'First Aid', 'parts': 'Replacement Parts', 'projects': 'Projects & Tasks'
             };
             const targetName = displayNames[target];
 
@@ -228,7 +221,6 @@ const CoreSystem = {
     generateHomeDashboard: function() {
         const state = StateManager.loadGlobalState();
         
-        // Calculate Inventory Glance
         let lowInvCount = 0;
         if (state.apps.inventory && state.apps.inventory.items) {
             state.apps.inventory.items.forEach(item => {
@@ -242,7 +234,6 @@ const CoreSystem = {
             });
         }
 
-        // Calculate Fleet Glance
         let vehiclesNeedingRepair = 0;
         let vehiclesNeedingInsp = 0;
         let totalVehicles = state.apps.fleet?.vehicles?.length || 0;
@@ -274,16 +265,25 @@ const CoreSystem = {
             });
         }
 
-        // Calculate First Aid Glance
         let firstAidKits = state.apps.firstAid?.categories?.length || 0;
 
-        // Calculate Parts Glance
         let lowParts = 0;
         let criticalOut = 0;
         if (state.apps.parts && state.apps.parts.partsCatalog) {
             state.apps.parts.partsCatalog.forEach(p => {
                 if (Number(p.qty) <= Number(p.minQty)) lowParts++;
                 if (p.isCritical && Number(p.qty) === 0) criticalOut++;
+            });
+        }
+
+        let activeProjects = 0;
+        let priorityProjects = 0;
+        if (state.apps.projects && state.apps.projects.tasks) {
+            state.apps.projects.tasks.forEach(t => {
+                if (t.status !== 'Completed') {
+                    activeProjects++;
+                    if (t.priority === 'High') priorityProjects++;
+                }
             });
         }
 
@@ -297,6 +297,14 @@ const CoreSystem = {
                         ${lowInvCount > 0 
                             ? `<p><strong style="color: var(--danger-color); font-size: 1.2rem;">${lowInvCount}</strong> items at or below reorder level.</p>`
                             : `<p style="color: var(--text-secondary);">All stock levels are optimal.</p>`}
+                    </div>
+
+                    <div class="app-card searchable-card" style="cursor: pointer; border-top: 4px solid var(--accent-primary); transition: transform 0.2s;" onclick="CoreSystem.routeToApp('projects')" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
+                        <h3 style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;"><span style="font-size: 1.5rem;">📋</span> Projects & Tasks</h3>
+                        <div style="display: flex; flex-direction: column; gap: 5px;">
+                            <p><strong>${activeProjects}</strong> Active Tasks</p>
+                            ${priorityProjects > 0 ? `<p><strong style="color: var(--danger-color); font-size: 1.1rem;">${priorityProjects}</strong> High Priority</p>` : `<p style="color: var(--text-secondary);">No High Priority Tasks.</p>`}
+                        </div>
                     </div>
 
                     <div class="app-card searchable-card" style="cursor: pointer; border-top: 4px solid var(--accent-primary); transition: transform 0.2s;" onclick="CoreSystem.routeToApp('fleet')" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
@@ -367,6 +375,10 @@ const CoreSystem = {
             case 'parts': 
                 titleLabel.innerText = "Replacement Parts"; 
                 if (typeof renderPartsApp === 'function') { container.innerHTML = renderPartsApp(); if (typeof initPartsLogic === 'function') initPartsLogic(); } else { container.innerHTML = `<p>Error: Parts modules not loaded.</p>`; } 
+                break;
+            case 'projects': 
+                titleLabel.innerText = "Projects & Tasks"; 
+                if (typeof renderProjectsApp === 'function') { container.innerHTML = renderProjectsApp(); if (typeof initProjectsLogic === 'function') initProjectsLogic(); } else { container.innerHTML = `<p>Error: Projects module not loaded.</p>`; } 
                 break;
             default:
                 console.warn("Unknown route: " + appName);

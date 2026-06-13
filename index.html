@@ -78,6 +78,10 @@
                 <span class="bento-icon">⚙️</span>
                 <span class="bento-label">Parts</span>
             </button>
+            <button class="bento-item" data-app="projects">
+                <span class="bento-icon">📋</span>
+                <span class="bento-label">Projects</span>
+            </button>
         </div>
     </nav>
 
@@ -144,6 +148,7 @@
                     <option value="winterization">Winter Ops</option>
                     <option value="firstAid">First Aid Tracker</option>
                     <option value="parts">Replacement Parts</option>
+                    <option value="projects">Projects & Tasks</option>
                 </select>
                 
                 <div style="display: flex; flex-direction: column; gap: 10px;">
@@ -196,6 +201,9 @@
     
     <script src="apps/parts/template.js"></script>
     <script src="apps/parts/app.js"></script>
+
+    <script src="apps/projects/template.js"></script>
+    <script src="apps/projects/app.js"></script>
 
     <script>
         if ('serviceWorker' in navigator) {

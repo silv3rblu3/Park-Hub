@@ -165,7 +165,8 @@ const StateManager = {
             inventory: { items: [], transactions: [] },
             winterization: { fall: {}, spring: {} },
             firstAid: { categories: [], items: [], logs: [] },
-            parts: { partsCatalog: [], areaTags: {}, kits: [], transactions: [] }
+            parts: { partsCatalog: [], areaTags: {}, kits: [], transactions: [] },
+            projects: { tasks: [] }
         }
     },
 
@@ -218,8 +219,8 @@ const StateManager = {
             return merged;
         }
 
-        // Generic safe merger for Fleet, First Aid, & Parts (Matches unique IDs)
-        if (['fleet', 'firstAid', 'parts'].includes(type)) {
+        // Generic safe merger for Fleet, First Aid, Parts & Projects (Matches unique IDs)
+        if (['fleet', 'firstAid', 'parts', 'projects'].includes(type)) {
             let merged = { ...local };
             for (let key in imported) {
                 if (Array.isArray(imported[key])) {
@@ -230,7 +231,6 @@ const StateManager = {
                             if (idx > -1) merged[key][idx] = { ...merged[key][idx], ...impObj };
                             else merged[key].push(impObj);
                         } else {
-                            // If it has no ID, prevent exact duplicates but otherwise append
                             if (typeof impObj !== 'object') {
                                 if (!merged[key].includes(impObj)) merged[key].push(impObj);
                             } else {
@@ -247,14 +247,13 @@ const StateManager = {
             return merged;
         }
 
-        // Deep merge for Winterization (Matches nested objects like fall -> A-Loop)
         if (type === 'winterization' || type === 'nested_object') {
             let merged = { ...local };
             for (let key in imported) {
                 if (typeof imported[key] === 'object' && !Array.isArray(imported[key]) && imported[key] !== null) {
                     merged[key] = this.smartMerge(merged[key] || {}, imported[key], 'nested_object');
                 } else {
-                    merged[key] = imported[key]; // Arrays or primitives completely overwrite at this depth
+                    merged[key] = imported[key]; 
                 }
             }
             return merged;
@@ -267,13 +266,11 @@ const StateManager = {
         const state = this.loadGlobalState();
         let data, filename;
         
-        // Formats to YYYY-MM-DD_HH-MM-SS
         const now = new Date();
         const dateStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
         const timeStr = String(now.getHours()).padStart(2, '0') + '-' + String(now.getMinutes()).padStart(2, '0') + '-' + String(now.getSeconds()).padStart(2, '0');
         const dateTime = `${dateStr}_${timeStr}`;
 
-        // Format the module prefix (e.g. 'inventory' -> 'Inventory')
         let prefix = target === 'firstAid' ? 'FirstAid' : target.charAt(0).toUpperCase() + target.slice(1);
 
         if (target === 'global') {
@@ -313,7 +310,6 @@ const StateManager = {
                     if (mode === 'replace') state.themes = imported;
                     else state.themes = this.smartMerge(state.themes, imported, 'themes');
                     
-                    // Ensure active theme still exists
                     if (!state.themes.find(t => t.id === state.activeThemeId)) {
                         state.activeThemeId = state.themes[0].id;
                     }
