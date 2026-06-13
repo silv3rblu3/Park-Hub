@@ -16,6 +16,7 @@ const StateManager = {
             }
         ],
         apps: {
+            parkInfo: { forms: [], links: [], emergencyInfo: "<h2>Emergency Procedures</h2><p>Please enter your park's emergency protocols here.</p>" },
             fleet: {
                 vehicles: [
                     { id: "R223", desc: "2014 Ford F-150", schedule: [
@@ -219,8 +220,8 @@ const StateManager = {
             return merged;
         }
 
-        // Generic safe merger for Fleet, First Aid, Parts & Projects (Matches unique IDs)
-        if (['fleet', 'firstAid', 'parts', 'projects'].includes(type)) {
+        // Generic safe merger for Fleet, First Aid, Parts, Projects, & Park Info (Matches unique IDs)
+        if (['fleet', 'firstAid', 'parts', 'projects', 'parkInfo'].includes(type)) {
             let merged = { ...local };
             for (let key in imported) {
                 if (Array.isArray(imported[key])) {
@@ -271,7 +272,7 @@ const StateManager = {
         const timeStr = String(now.getHours()).padStart(2, '0') + '-' + String(now.getMinutes()).padStart(2, '0') + '-' + String(now.getSeconds()).padStart(2, '0');
         const dateTime = `${dateStr}_${timeStr}`;
 
-        let prefix = target === 'firstAid' ? 'FirstAid' : target.charAt(0).toUpperCase() + target.slice(1);
+        let prefix = target === 'firstAid' ? 'FirstAid' : (target === 'parkInfo' ? 'ParkInfo' : target.charAt(0).toUpperCase() + target.slice(1));
 
         if (target === 'global') {
             data = state;

@@ -58,6 +58,10 @@
                 <span class="bento-icon">🏠</span>
                 <span class="bento-label">Home</span>
             </button>
+            <button class="bento-item" data-app="parkInfo">
+                <span class="bento-icon">🌲</span>
+                <span class="bento-label">Park Info</span>
+            </button>
             <button class="bento-item" data-app="inventory">
                 <span class="bento-icon">📦</span>
                 <span class="bento-label">Inventory</span>
@@ -143,6 +147,7 @@
                 <select id="sync-target-select" class="app-select" style="margin-bottom: 15px;">
                     <option value="global">Global Master (All Apps & Settings)</option>
                     <option value="themes">Themes</option>
+                    <option value="parkInfo">Park Info & Resources</option>
                     <option value="inventory">Inventory Manager</option>
                     <option value="fleet">Fleet Management</option>
                     <option value="winterization">Winter Ops</option>
@@ -186,6 +191,9 @@
     <script src="js/stateManager.js"></script>
     <script src="js/notifications.js"></script>
     <script src="js/core.js"></script>
+
+    <script src="apps/park-info/template.js"></script>
+    <script src="apps/park-info/app.js"></script>
 
     <script src="apps/inventory/template.js"></script>
     <script src="apps/inventory/app.js"></script>

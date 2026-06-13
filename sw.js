@@ -1,7 +1,7 @@
 // sw.js
 
-// Bumped cache string to v16
-const CACHE_NAME = 'omnihub-v16'; 
+// Bumped cache string to v17
+const CACHE_NAME = 'omnihub-v17'; 
 
 const ASSETS_TO_CACHE = [
     '/Park-Hub/',
@@ -12,6 +12,8 @@ const ASSETS_TO_CACHE = [
     '/Park-Hub/js/core.js',
     '/Park-Hub/js/stateManager.js',
     '/Park-Hub/js/notifications.js',
+    '/Park-Hub/apps/park-info/template.js',
+    '/Park-Hub/apps/park-info/app.js',
     '/Park-Hub/apps/inventory/template.js',
     '/Park-Hub/apps/inventory/app.js',
     '/Park-Hub/apps/fleet/template.js',

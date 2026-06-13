@@ -145,7 +145,7 @@ const CoreSystem = {
             if (fileNameParts.length >= 2 && fileNameParts[1] === 'PMH') {
                 const prefix = fileNameParts[0].toLowerCase();
                 const targetMap = { 
-                    'global': 'global', 'themes': 'themes', 'inventory': 'inventory', 
+                    'global': 'global', 'themes': 'themes', 'parkinfo': 'parkInfo', 'inventory': 'inventory', 
                     'fleet': 'fleet', 'winterization': 'winterization', 
                     'firstaid': 'firstAid', 'parts': 'parts', 'projects': 'projects'
                 };
@@ -158,7 +158,7 @@ const CoreSystem = {
             }
 
             const displayNames = {
-                'global': 'Global Master (All Apps)', 'themes': 'Themes', 'inventory': 'Inventory Manager',
+                'global': 'Global Master (All Apps)', 'themes': 'Themes', 'parkInfo': 'Park Info & Resources', 'inventory': 'Inventory Manager',
                 'fleet': 'Fleet Management', 'winterization': 'Winter Ops', 'firstAid': 'First Aid', 'parts': 'Replacement Parts', 'projects': 'Projects & Tasks'
             };
             const targetName = displayNames[target];
@@ -221,6 +221,10 @@ const CoreSystem = {
     generateHomeDashboard: function() {
         const state = StateManager.loadGlobalState();
         
+        // Park Info Glance
+        let linkCount = state.apps.parkInfo?.links?.length || 0;
+        let formCount = state.apps.parkInfo?.forms?.length || 0;
+
         let lowInvCount = 0;
         if (state.apps.inventory && state.apps.inventory.items) {
             state.apps.inventory.items.forEach(item => {
@@ -292,11 +296,10 @@ const CoreSystem = {
                 <h1 style="margin-bottom: 20px;">System Overview</h1>
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
                     
-                    <div class="app-card searchable-card" style="cursor: pointer; border-top: 4px solid var(--accent-primary); transition: transform 0.2s;" onclick="CoreSystem.routeToApp('inventory')" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
-                        <h3 style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;"><span style="font-size: 1.5rem;">📦</span> Inventory</h3>
-                        ${lowInvCount > 0 
-                            ? `<p><strong style="color: var(--danger-color); font-size: 1.2rem;">${lowInvCount}</strong> items at or below reorder level.</p>`
-                            : `<p style="color: var(--text-secondary);">All stock levels are optimal.</p>`}
+                    <div class="app-card searchable-card" style="cursor: pointer; border-top: 4px solid var(--accent-primary); transition: transform 0.2s;" onclick="CoreSystem.routeToApp('parkInfo')" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
+                        <h3 style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;"><span style="font-size: 1.5rem;">🌲</span> Park Info</h3>
+                        <p><strong>${formCount}</strong> Forms | <strong>${linkCount}</strong> Links</p>
+                        <p style="color: var(--text-secondary); margin-top: 5px;">Access emergency protocols, links, and quick-print resources.</p>
                     </div>
 
                     <div class="app-card searchable-card" style="cursor: pointer; border-top: 4px solid var(--accent-primary); transition: transform 0.2s;" onclick="CoreSystem.routeToApp('projects')" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
@@ -305,6 +308,13 @@ const CoreSystem = {
                             <p><strong>${activeProjects}</strong> Active Tasks</p>
                             ${priorityProjects > 0 ? `<p><strong style="color: var(--danger-color); font-size: 1.1rem;">${priorityProjects}</strong> High Priority</p>` : `<p style="color: var(--text-secondary);">No High Priority Tasks.</p>`}
                         </div>
+                    </div>
+
+                    <div class="app-card searchable-card" style="cursor: pointer; border-top: 4px solid var(--accent-primary); transition: transform 0.2s;" onclick="CoreSystem.routeToApp('inventory')" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
+                        <h3 style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;"><span style="font-size: 1.5rem;">📦</span> Inventory</h3>
+                        ${lowInvCount > 0 
+                            ? `<p><strong style="color: var(--danger-color); font-size: 1.2rem;">${lowInvCount}</strong> items at or below reorder level.</p>`
+                            : `<p style="color: var(--text-secondary);">All stock levels are optimal.</p>`}
                     </div>
 
                     <div class="app-card searchable-card" style="cursor: pointer; border-top: 4px solid var(--accent-primary); transition: transform 0.2s;" onclick="CoreSystem.routeToApp('fleet')" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
@@ -355,6 +365,10 @@ const CoreSystem = {
             case 'home': 
                 titleLabel.innerText = "Home Dashboard"; 
                 container.innerHTML = this.generateHomeDashboard(); 
+                break;
+            case 'parkInfo': 
+                titleLabel.innerText = "Park Info & Resources"; 
+                if (typeof renderParkInfoApp === 'function') { container.innerHTML = renderParkInfoApp(); if (typeof initParkInfoLogic === 'function') initParkInfoLogic(); } else { container.innerHTML = `<p>Error: Park Info module not loaded.</p>`; } 
                 break;
             case 'inventory': 
                 titleLabel.innerText = "Inventory Manager"; 
