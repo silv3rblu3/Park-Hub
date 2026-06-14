@@ -5,17 +5,22 @@ function initParkInfoLogic() {
     
     // Validate Data Structure
     if (!piData.forms) piData.forms = [];
-    if (!piData.docs) piData.docs = []; // Added for general park documents
+    if (!piData.docs) piData.docs = []; 
     if (!piData.links) piData.links = [];
     if (!piData.emergencyLinks) piData.emergencyLinks = []; 
     if (!piData.emergencyDocs) piData.emergencyDocs = []; 
+    if (!piData.linkCategories) piData.linkCategories = ['General'];
     
     // Clean up old HTML placeholder text if present, replace with simple text
     if (!piData.emergencyInfo || piData.emergencyInfo.includes('<h2>')) { 
-        piData.emergencyInfo = "Emergency Procedures\n\nPlease enter your park's emergency protocols here. You can update this at any time by clicking the Edit Text button."; 
+        piData.emergencyInfo = "Emergency Procedures\n\nPlease enter your park's emergency protocols here. You can update this at any time by clicking the Edit button."; 
     }
     
     const safeSave = () => { StateManager.setAppData('parkInfo', piData); };
+
+    // State trackers
+    let isLinksEditMode = false;
+    let activeLinkFilter = 'All'; // Keeps track of the currently selected dropdown category
 
     // Set up tabs
     const tabs = document.querySelectorAll('.pi-tab');
@@ -23,6 +28,8 @@ function initParkInfoLogic() {
 
     tabs.forEach(tab => {
         tab.addEventListener('click', (e) => {
+            isLinksEditMode = false; // Reset edit mode on tab switch
+            activeLinkFilter = 'All'; // Reset filter on tab switch
             tabs.forEach(t => { t.classList.remove('btn-primary'); t.classList.add('btn-outline'); });
             e.target.classList.remove('btn-outline'); e.target.classList.add('btn-primary');
             renderPIView(e.target.getAttribute('data-target'));
@@ -41,38 +48,6 @@ function initParkInfoLogic() {
         document.getElementById('pi-lightbox-modal').close();
     });
 
-    // Native Forms PDF Preview Wrapper
-    function openNativeFormPreview(title, blankHtml) {
-        const viewerHtml = `
-            <html>
-            <head>
-                <title>Preview: ${title}</title>
-                <style>
-                    body { font-family: sans-serif; margin: 20px; color: #333; background: #eaeff2; }
-                    .no-print { text-align: right; margin-bottom: 20px; background: white; padding: 15px 20px; border-radius: 8px; border: 1px solid #ccc; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-                    .no-print h3 { margin: 0; color: #2c3e50; font-size: 1.3rem; }
-                    .print-btn { padding: 12px 24px; font-size: 16px; background: #2d5a27; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: background 0.2s; }
-                    .print-btn:hover { background: #1e3d1a; }
-                    @media print { .no-print { display: none !important; } body { background: white; margin: 0; } .form-container { box-shadow: none; padding: 0; } }
-                    .form-container { max-width: 850px; margin: 0 auto; background: white; padding: 30px; border-radius: 4px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
-                </style>
-            </head>
-            <body>
-                <div class="no-print">
-                    <h3>Document Preview</h3>
-                    <button class="print-btn" onclick="window.print()">🖨️ Print Form</button>
-                </div>
-                <div class="form-container">
-                    ${blankHtml}
-                </div>
-            </body>
-            </html>
-        `;
-        const win = window.open('', '_blank');
-        win.document.write(viewerHtml);
-        win.document.close();
-    }
-
     function renderPIView(viewName) {
         stage.innerHTML = '';
         
@@ -84,20 +59,20 @@ function initParkInfoLogic() {
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                     <h3 style="margin:0;">🚨 Emergency Protocols & Standard Operating Procedures (SOP)</h3>
                     <div>
-                        <button id="pi-edit-emerg-btn" class="btn-outline">✏️ Edit Text</button>
-                        <button id="pi-save-emerg-btn" class="btn-primary hidden">💾 Save Changes</button>
+                        <button id="pi-edit-emerg-btn" class="btn-outline">✏️ Edit</button>
+                        <button id="pi-save-emerg-btn" class="btn-primary" style="display: none;">💾 Save Changes</button>
                     </div>
                 </div>
                 
                 <div id="pi-emerg-display" style="padding: 15px; border: 1px solid transparent; border-radius: var(--radius-md); background: rgba(0,0,0,0.02); min-height: 200px;">
                     ${displaySafeText}
                 </div>
-                <textarea id="pi-emerg-editor" class="app-input hidden" rows="12" style="width: 100%;">${piData.emergencyInfo}</textarea>
+                <textarea id="pi-emerg-editor" class="app-input" rows="12" style="width: 100%; display: none;">${piData.emergencyInfo}</textarea>
                 
                 <div style="margin-top: 30px; border-top: 2px solid var(--border-color); padding-top: 20px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                         <h3 style="margin: 0; color: var(--danger-color);">📄 Emergency Documents & Forms</h3>
-                        <button id="pi-add-emerg-doc-btn" class="btn-outline" style="border-color: var(--danger-color); color: var(--danger-color);">+ Add Document</button>
+                        <button id="pi-add-emerg-doc-btn" class="btn-outline pi-edit-controls" style="display: none; border-color: var(--danger-color); color: var(--danger-color);">+ Add Document</button>
                     </div>
                     <div class="app-table-container" style="margin-bottom: 30px;">
                         <table class="app-table">
@@ -113,7 +88,7 @@ function initParkInfoLogic() {
                             <td><strong style="color: var(--danger-color);">${d.title}</strong></td>
                             <td>${d.description || '--'}</td>
                             <td style="text-align: right;">
-                                <button class="btn-outline pi-edit-form" data-type="emergency" data-id="${d.id}" style="padding: 4px 10px; font-size: 0.8rem; border-color: var(--danger-color); color: var(--danger-color);">✏️ Edit</button>
+                                <button class="btn-outline pi-edit-form pi-edit-controls" data-type="emergency" data-id="${d.id}" style="display: none; padding: 4px 10px; font-size: 0.8rem; border-color: var(--danger-color); color: var(--danger-color);">✏️ Edit</button>
                                 <a href="${d.url}" target="_blank" class="btn-primary" style="padding: 6px 12px; text-decoration: none; display: inline-block; background-color: var(--danger-color);">📄 View / Download</a>
                             </td>
                         </tr>`;
@@ -124,7 +99,7 @@ function initParkInfoLogic() {
             html += `
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                         <h3 style="margin: 0; color: var(--danger-color);">🔗 Important Emergency Links</h3>
-                        <button id="pi-add-emerg-link-btn" class="btn-outline" style="border-color: var(--danger-color); color: var(--danger-color);">+ Add Emergency Link</button>
+                        <button id="pi-add-emerg-link-btn" class="btn-outline pi-edit-controls" style="display: none; border-color: var(--danger-color); color: var(--danger-color);">+ Add Emergency Link</button>
                     </div>
                     <div id="pi-emerg-links-container" style="display: flex; flex-direction: column; gap: 10px;">`;
             
@@ -138,7 +113,7 @@ function initParkInfoLogic() {
                         <div class="info-link-item" style="border-left: 4px solid var(--danger-color);">
                             <div style="display: flex; justify-content: space-between; align-items: flex-start;">
                                 <a href="${vUrl}" target="_blank" rel="noopener noreferrer" class="info-link-title" style="color: var(--danger-color);">${l.title} ↗</a>
-                                <button class="btn-outline pi-edit-link" data-type="emergency" data-id="${l.id}" style="padding: 2px 8px; font-size: 0.8rem;">✏️ Edit</button>
+                                <button class="btn-outline pi-edit-link pi-edit-controls" data-type="emergency" data-id="${l.id}" style="display: none; padding: 2px 8px; font-size: 0.8rem;">✏️ Edit</button>
                             </div>
                             <div class="info-link-desc">${l.description || 'No description provided.'}</div>
                         </div>`;
@@ -152,12 +127,14 @@ function initParkInfoLogic() {
             const saveBtn = document.getElementById('pi-save-emerg-btn');
             const displayDiv = document.getElementById('pi-emerg-display');
             const editorTxt = document.getElementById('pi-emerg-editor');
+            const editControls = document.querySelectorAll('.pi-edit-controls');
 
             editBtn.addEventListener('click', () => {
-                displayDiv.classList.add('hidden');
-                editorTxt.classList.remove('hidden');
-                editBtn.classList.add('hidden');
-                saveBtn.classList.remove('hidden');
+                displayDiv.style.display = 'none';
+                editorTxt.style.display = 'block';
+                editBtn.style.display = 'none';
+                saveBtn.style.display = 'inline-block';
+                editControls.forEach(el => el.style.display = 'inline-block');
             });
 
             saveBtn.addEventListener('click', () => {
@@ -165,10 +142,11 @@ function initParkInfoLogic() {
                 safeSave();
                 displayDiv.innerHTML = piData.emergencyInfo.replace(/\n/g, '<br>');
                 
-                editorTxt.classList.add('hidden');
-                displayDiv.classList.remove('hidden');
-                saveBtn.classList.add('hidden');
-                editBtn.classList.remove('hidden');
+                editorTxt.style.display = 'none';
+                displayDiv.style.display = 'block';
+                saveBtn.style.display = 'none';
+                editBtn.style.display = 'inline-block';
+                editControls.forEach(el => el.style.display = 'none');
                 NotificationSystem.show("Protocols Saved", "success");
             });
 
@@ -178,6 +156,7 @@ function initParkInfoLogic() {
             // Links Triggers
             document.getElementById('pi-add-emerg-link-btn').addEventListener('click', () => openLinkEditor(null, 'emergency'));
             document.querySelectorAll('.pi-edit-link').forEach(btn => btn.addEventListener('click', (e) => openLinkEditor(e.target.getAttribute('data-id'), e.target.getAttribute('data-type'))));
+            document.querySelectorAll('.pi-edit-form').forEach(btn => btn.addEventListener('click', (e) => openFormEditor(e.target.getAttribute('data-id'), 'emergency')));
         } 
         else if (viewName === 'forms') {
             let html = `
@@ -191,6 +170,7 @@ function initParkInfoLogic() {
                     <button class="pi-form-sub-tab btn-outline" data-target="docs-list" style="flex:1;">Park Documents</button>
                 </div>
 
+                <!-- BLANK FORMS SUB-VIEW -->
                 <div id="pi-view-forms-list" class="pi-sub-view">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                         <p style="color: var(--text-secondary); margin: 0;">System-generated checklists and custom blank forms.</p>
@@ -204,17 +184,17 @@ function initParkInfoLogic() {
                                 <tr style="background: rgba(46, 204, 113, 0.05);">
                                     <td><strong>System: Fleet Monthly Inspection</strong></td>
                                     <td>Blank checklist pulled directly from the Fleet Module configuration.</td>
-                                    <td style="text-align: right;"><button class="btn-primary pi-print-native" data-form="fleet">📄 View / Print</button></td>
+                                    <td style="text-align: right;"><button class="btn-primary pi-print-native" data-form="fleet">🖨️ Print Form</button></td>
                                 </tr>
                                 <tr style="background: rgba(52, 152, 219, 0.05);">
                                     <td><strong>System: Fall Winterization Checklist</strong></td>
                                     <td>Standard blank checklist for Fall shutdown procedures.</td>
-                                    <td style="text-align: right;"><button class="btn-primary pi-print-native" data-form="fall">📄 View / Print</button></td>
+                                    <td style="text-align: right;"><button class="btn-primary pi-print-native" data-form="fall">🖨️ Print Form</button></td>
                                 </tr>
                                 <tr style="background: rgba(241, 196, 15, 0.05);">
                                     <td><strong>System: Spring De-Winterization Checklist</strong></td>
                                     <td>Standard blank checklist for Spring startup procedures.</td>
-                                    <td style="text-align: right;"><button class="btn-primary pi-print-native" data-form="spring">📄 View / Print</button></td>
+                                    <td style="text-align: right;"><button class="btn-primary pi-print-native" data-form="spring">🖨️ Print Form</button></td>
                                 </tr>
             `;
 
@@ -234,7 +214,7 @@ function initParkInfoLogic() {
 
             // PARK DOCUMENTS SUB-VIEW
             html += `
-                <div id="pi-view-docs-list" class="pi-sub-view hidden">
+                <div id="pi-view-docs-list" class="pi-sub-view" style="display: none;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                         <p style="color: var(--text-secondary); margin: 0;">General park documents, manuals, and reference files.</p>
                         <button id="pi-add-doc-btn" class="btn-primary">+ Add Document</button>
@@ -270,12 +250,12 @@ function initParkInfoLogic() {
                     document.querySelectorAll('.pi-form-sub-tab').forEach(t => { t.classList.remove('btn-primary'); t.classList.add('btn-outline'); });
                     e.target.classList.remove('btn-outline'); e.target.classList.add('btn-primary');
                     
-                    document.querySelectorAll('.pi-sub-view').forEach(v => v.classList.add('hidden'));
-                    document.getElementById('pi-view-' + e.target.getAttribute('data-target')).classList.remove('hidden');
+                    document.querySelectorAll('.pi-sub-view').forEach(v => v.style.display = 'none');
+                    document.getElementById('pi-view-' + e.target.getAttribute('data-target')).style.display = 'block';
                 });
             });
 
-            // Generate Blank Native Forms in PDF Preview Wrapper
+            // Clean Direct-to-Print Generation
             document.querySelectorAll('.pi-print-native').forEach(btn => btn.addEventListener('click', (e) => {
                 const formType = e.target.getAttribute('data-form');
                 let blankHtml = '';
@@ -286,13 +266,32 @@ function initParkInfoLogic() {
                     const fleetData = StateManager.getAppData('fleet');
                     if (!fleetData || !fleetData.settings || !fleetData.settings.checklistItems) return NotificationSystem.show("Fleet module not configured.", "error");
                     
-                    blankHtml = `<div style="margin-bottom: 20px; font-family: sans-serif;"><h2 style="text-align:center; border-bottom:2px solid #000; padding-bottom: 10px;">Monthly Vehicle Inspection</h2>
-                    <div style="display:grid; grid-template-columns:1fr 1fr; margin-bottom:15px; font-size:12px;"><div><strong>Vehicle:</strong> ________________</div><div><strong>Date:</strong> ________________</div><div><strong>Inspector:</strong> ________________</div><div><strong>Odometer:</strong> ________________</div></div>
-                    <table style="width:100%; border-collapse:collapse; font-size:12px;"><thead><tr><th style="border:1px solid #000; background:#eee; padding:5px; text-align: left;">Item</th><th style="border:1px solid #000; background:#eee; padding:5px;">Result</th><th style="border:1px solid #000; background:#eee; padding:5px; text-align: left;">Item</th><th style="border:1px solid #000; background:#eee; padding:5px;">Result</th></tr></thead><tbody>`;
+                    blankHtml = `<div class="page-break">
+                    <h2 style="text-align:center; border-bottom:2px solid #000; padding-bottom: 10px;">Monthly Vehicle Inspection</h2>
+                    <div style="display:flex; justify-content:space-between; margin-bottom:20px; font-weight: bold; font-size: 1.1rem;">
+                        <div>Vehicle: _________________</div>
+                        <div>Date: _________________</div>
+                        <div>Inspector: _________________</div>
+                        <div>Odometer: _________________</div>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 35%;">Item</th>
+                                <th style="width: 15%; text-align: center;">Result</th>
+                                <th style="width: 35%;">Item</th>
+                                <th style="width: 15%; text-align: center;">Result</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
                     
                     const cl = fleetData.settings.checklistItems;
                     for(let i=0; i<cl.length; i+=2) {
-                        blankHtml += `<tr><td style="border:1px solid #000; padding:8px;">${cl[i]}</td><td style="border:1px solid #000; padding:8px; text-align: center;">Pass / Fail / NA</td>${cl[i+1] ? `<td style="border:1px solid #000; padding:8px;">${cl[i+1]}</td><td style="border:1px solid #000; padding:8px; text-align: center;">Pass / Fail / NA</td>` : `<td></td><td></td>`}</tr>`;
+                        blankHtml += `<tr>
+                            <td><strong>${cl[i]}</strong></td>
+                            <td style="text-align: center;">Pass / Fail / NA</td>
+                            ${cl[i+1] ? `<td><strong>${cl[i+1]}</strong></td><td style="text-align: center;">Pass / Fail / NA</td>` : `<td></td><td></td>`}
+                        </tr>`;
                     }
                     blankHtml += `</tbody></table></div>`;
                 } 
@@ -305,42 +304,46 @@ function initParkInfoLogic() {
                     
                     Object.keys(wintData[formType]).forEach(area => {
                         const seasonData = wintData[formType][area];
-                        let areaHtml = `<div style="page-break-after: always; padding: 0; margin: 0; font-family: sans-serif;">`;
-                        areaHtml += `<h2 style="margin-bottom: 10px; padding-bottom: 5px; border-bottom: 2px solid black;">${yearPrefix}${formType.toUpperCase()} - ${area}</h2>`;
+                        
+                        let areaHtml = `<div class="page-break">`;
+                        areaHtml += `<h2 style="margin-top: 0; margin-bottom: 15px; padding-bottom: 5px; border-bottom: 2px solid black;">${yearPrefix}${formType.toUpperCase()} - ${area}</h2>`;
                         
                         if (seasonData.tools) {
                             areaHtml += `
-                                <div style="background-color: #f9f9f9; padding: 15px; border-radius: 8px; border-left: 4px solid #4CAF50; margin-bottom: 20px;">
-                                    <h4 style="margin-bottom: 5px; font-family: sans-serif;">🛠️ Tools & Equipment Needed</h4>
-                                    <p style="white-space: pre-wrap; font-size: 0.95rem; margin: 0; font-family: sans-serif;">${seasonData.tools}</p>
+                                <div style="background-color: #f9f9f9; padding: 15px; border-radius: 8px; border-left: 4px solid #555; margin-bottom: 20px;">
+                                    <h4 style="margin: 0 0 5px 0;">🛠️ Tools & Equipment Needed</h4>
+                                    <p style="white-space: pre-wrap; margin: 0;">${seasonData.tools}</p>
                                 </div>
                             `;
                         }
 
                         seasonData.sections.forEach(section => {
                             if (section.category === "WARNING") {
-                                areaHtml += `<div style="background-color: ${section.isCritical ? '#ffe6e6' : '#fff3cd'}; color: ${section.isCritical ? '#cc0000' : '#000'}; padding: 15px; font-weight: bold; border-left: 5px solid ${section.isCritical ? '#cc0000' : '#000'}; margin-bottom: 20px; border-radius: 4px; font-family: sans-serif;">${section.warningText}</div>`;
+                                areaHtml += `<div style="background-color: ${section.isCritical ? '#ffe6e6' : '#fff3cd'}; color: ${section.isCritical ? '#cc0000' : '#000'}; padding: 15px; font-weight: bold; border-left: 5px solid ${section.isCritical ? '#cc0000' : '#000'}; margin-bottom: 20px; border-radius: 4px;">${section.warningText}</div>`;
                                 return; 
                             }
 
-                            areaHtml += `<div style="margin-bottom: 30px;"><h3 style="background-color: #f0f0f0; padding: 8px; border-radius: 4px; margin-bottom: 15px; font-family: sans-serif;">${section.category}</h3><div style="width: 100%; overflow-x: auto;">`;
+                            areaHtml += `<div style="margin-bottom: 30px;">
+                                <h3 style="background-color: #f0f0f0; padding: 8px; border-radius: 4px; margin-bottom: 10px;">${section.category}</h3>`;
+                            
                             let columnsToRender = section.columns ? section.columns : ["Action"];
-                            let tableHtml = `<table style="width: 100%; border-collapse: collapse; border: 2px solid black; margin-bottom: 10px; background: white; font-family: sans-serif;"><thead><tr><th style="padding:8px; border:1px solid black; background:#eee; font-size:0.9rem; text-align: left;">Item</th>`;
+                            let tableHtml = `<table><thead><tr><th style="width: 40%;">Item</th>`;
                             
                             columnsToRender.forEach((col) => { 
-                                tableHtml += `<th style="padding:8px; border:1px solid black; background:#eee; width: 130px; text-align: center; font-size:0.9rem;">${col} (Date)</th>
-                                              <th style="padding:8px; border:1px solid black; background:#eee; width: 130px; text-align: center; font-size:0.9rem;">Initials</th>`; 
+                                tableHtml += `<th style="width: 130px; text-align: center;">${col} (Date)</th>
+                                              <th style="width: 100px; text-align: center;">Initials</th>`; 
                             });
                             tableHtml += `</tr></thead><tbody>`;
 
                             section.tasks.forEach((task) => {
-                                tableHtml += `<tr><td style="padding:8px; border:1px solid black; font-size:0.9rem;"><strong>${task.text}</strong></td>`;
+                                tableHtml += `<tr><td><strong>${task.text}</strong></td>`;
                                 columnsToRender.forEach(() => {
-                                    tableHtml += `<td style="border:1px solid #000; text-align:center; padding:8px;"><div style="width: 90%; min-height: 20px; margin: auto; border-bottom: 1px solid black;"></div></td><td style="border:1px solid #000; text-align:center; padding:8px;"><div style="width: 90%; min-height: 20px; margin: auto; border-bottom: 1px solid black;"></div></td>`;
+                                    tableHtml += `<td style="text-align:center; vertical-align:bottom;"><div style="width: 90%; margin: 15px auto 5px auto; border-bottom: 1px solid black;"></div></td>
+                                                  <td style="text-align:center; vertical-align:bottom;"><div style="width: 90%; margin: 15px auto 5px auto; border-bottom: 1px solid black;"></div></td>`;
                                 });
                                 tableHtml += `</tr>`;
                             });
-                            tableHtml += `</tbody></table></div></div>`;
+                            tableHtml += `</tbody></table></div>`;
                             areaHtml += tableHtml;
                         });
                         areaHtml += `</div>`;
@@ -348,7 +351,35 @@ function initParkInfoLogic() {
                     });
                 }
                 
-                openNativeFormPreview(title, blankHtml);
+                // Direct Printing Pipeline
+                const win = window.open('', '_blank');
+                win.document.write(`
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <title>Print: ${title}</title>
+                        <style>
+                            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #000; background: #fff; margin: 0; padding: 20px; }
+                            table { width: 100%; border-collapse: collapse; margin-bottom: 30px; page-break-inside: auto; }
+                            tr { page-break-inside: avoid; page-break-after: auto; }
+                            thead { display: table-header-group; }
+                            th, td { border: 1px solid #000; padding: 8px; text-align: left; font-size: 0.9rem; }
+                            th { background-color: #f2f2f2; font-weight: bold; }
+                            .page-break { page-break-after: always; clear: both; margin-bottom: 20px; }
+                            @page { size: letter; margin: 0.5in; }
+                        </style>
+                    </head>
+                    <body>
+                        ${blankHtml}
+                        <script>
+                            window.onload = () => { 
+                                setTimeout(() => { window.print(); }, 250); 
+                            };
+                        </script>
+                    </body>
+                    </html>
+                `);
+                win.document.close();
             }));
 
             // Custom Forms & Docs Listeners
@@ -359,38 +390,135 @@ function initParkInfoLogic() {
             document.querySelectorAll('.pi-edit-form').forEach(btn => btn.addEventListener('click', (e) => openFormEditor(e.target.getAttribute('data-id'), e.target.getAttribute('data-type'))));
         }
         else if (viewName === 'links') {
+            
+            // Build Filter Options
+            let filterOptions = `<option value="All" ${activeLinkFilter === 'All' ? 'selected' : ''}>All Categories</option>`;
+            piData.linkCategories.forEach(c => {
+                filterOptions += `<option value="${c}" ${activeLinkFilter === c ? 'selected' : ''}>${c}</option>`;
+            });
+
             let html = `
             <div class="info-card">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                    <h3 style="margin: 0;">🔗 Important Park Links</h3>
-                    <button id="pi-add-link-btn" class="btn-primary">+ Add New Link</button>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+                    <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+                        <h3 style="margin: 0;">🔗 Important Park Links</h3>
+                        <select id="pi-link-filter" class="app-select" style="margin: 0; min-width: 150px; padding: 6px; font-size: 0.9rem;">
+                            ${filterOptions}
+                        </select>
+                    </div>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        ${isLinksEditMode ? `
+                        <button id="pi-add-link-cat-btn" class="btn-outline">+ Category</button>
+                        <button id="pi-add-link-btn" class="btn-primary">+ Add Link</button>
+                        ` : ''}
+                        <button id="pi-toggle-link-edit" class="${isLinksEditMode ? 'btn-primary' : 'btn-outline'}">${isLinksEditMode ? 'Done Editing' : '✏️ Edit Mode'}</button>
+                    </div>
                 </div>
-                <div style="display: flex; flex-direction: column; gap: 10px;">
+                <div style="display: flex; flex-direction: column; gap: 20px;">
             `;
 
-            if (piData.links.length === 0) {
-                html += `<div style="text-align: center; padding: 20px; color: var(--text-secondary);">No custom links added yet.</div>`;
-            } else {
-                piData.links.forEach(l => {
-                    let vUrl = l.url || '';
-                    if (vUrl && !vUrl.startsWith('http')) vUrl = 'https://' + vUrl;
-                    
-                    html += `
-                        <div class="info-link-item">
-                            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                                <a href="${vUrl}" target="_blank" rel="noopener noreferrer" class="info-link-title">${l.title} ↗</a>
-                                <button class="btn-outline pi-edit-link" data-type="general" data-id="${l.id}" style="padding: 2px 8px; font-size: 0.8rem;">✏️ Edit</button>
+            piData.linkCategories.forEach(cat => {
+                // If filter is active and doesn't match this category, skip rendering it entirely
+                if (activeLinkFilter !== 'All' && activeLinkFilter !== cat) return;
+
+                const catLinks = piData.links.filter(l => (l.category || 'General') === cat);
+                
+                // Hide empty categories unless we are in Edit Mode
+                if (catLinks.length === 0 && !isLinksEditMode) return; 
+
+                html += `
+                <div class="link-category-block">
+                    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid var(--border-color); padding-bottom: 5px; margin-bottom: 10px;">
+                        <h4 style="margin:0; color: var(--accent-primary); font-size: 1.1rem;">${cat}</h4>
+                        ${(isLinksEditMode && cat !== 'General') ? `
+                        <div>
+                            <button class="btn-outline pi-rename-cat" data-cat="${cat}" style="padding: 2px 8px; font-size: 0.8rem; margin-right: 5px;">✏️ Rename</button> 
+                            <button class="btn-danger pi-del-cat" data-cat="${cat}" style="padding: 2px 8px; font-size: 0.8rem;">X</button>
+                        </div>` : ''}
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                `;
+                
+                if (catLinks.length === 0) {
+                    html += `<div style="text-align: center; padding: 10px; color: var(--text-secondary); font-size: 0.9rem;">No links in this category.</div>`;
+                } else {
+                    catLinks.forEach(l => {
+                        let vUrl = l.url || '';
+                        if (vUrl && !vUrl.startsWith('http')) vUrl = 'https://' + vUrl;
+                        
+                        html += `
+                            <div class="info-link-item">
+                                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                    <a href="${vUrl}" target="_blank" rel="noopener noreferrer" class="info-link-title">${l.title} ↗</a>
+                                    ${isLinksEditMode ? `<button class="btn-outline pi-edit-link" data-type="general" data-id="${l.id}" style="padding: 2px 8px; font-size: 0.8rem;">✏️ Edit</button>` : ''}
+                                </div>
+                                <div class="info-link-desc">${l.description || 'No description provided.'}</div>
                             </div>
-                            <div class="info-link-desc">${l.description || 'No description provided.'}</div>
-                        </div>
-                    `;
-                });
-            }
+                        `;
+                    });
+                }
+                
+                html += `</div></div>`;
+            });
+            
             html += `</div></div>`;
             stage.innerHTML = html;
 
-            document.getElementById('pi-add-link-btn').addEventListener('click', () => openLinkEditor(null, 'general'));
-            document.querySelectorAll('.pi-edit-link').forEach(btn => btn.addEventListener('click', (e) => openLinkEditor(e.target.getAttribute('data-id'), 'general')));
+            document.getElementById('pi-link-filter').addEventListener('change', (e) => {
+                activeLinkFilter = e.target.value;
+                renderPIView('links');
+            });
+
+            document.getElementById('pi-toggle-link-edit').addEventListener('click', () => {
+                isLinksEditMode = !isLinksEditMode;
+                renderPIView('links');
+            });
+
+            if (isLinksEditMode) {
+                document.getElementById('pi-add-link-btn').addEventListener('click', () => openLinkEditor(null, 'general'));
+                document.getElementById('pi-add-link-cat-btn').addEventListener('click', async () => {
+                    const newCat = await DialogSystem.prompt("Add Category", "Category Name:");
+                    if (newCat && newCat.trim() !== '' && !piData.linkCategories.includes(newCat.trim())) {
+                        piData.linkCategories.push(newCat.trim());
+                        safeSave();
+                        renderPIView('links');
+                    }
+                });
+
+                document.querySelectorAll('.pi-rename-cat').forEach(btn => btn.addEventListener('click', async (e) => {
+                    const oldCat = e.target.getAttribute('data-cat');
+                    const newCat = await DialogSystem.prompt("Rename Category", "Enter new name:", oldCat);
+                    if (newCat && newCat.trim() !== '' && newCat !== oldCat) {
+                        const idx = piData.linkCategories.indexOf(oldCat);
+                        if(idx > -1) piData.linkCategories[idx] = newCat.trim();
+                        // Bulk update all links in this category
+                        piData.links.forEach(l => { if((l.category || 'General') === oldCat) l.category = newCat.trim(); });
+                        
+                        // Update active filter if they renamed the one they are currently looking at
+                        if (activeLinkFilter === oldCat) activeLinkFilter = newCat.trim();
+
+                        safeSave();
+                        renderPIView('links');
+                    }
+                }));
+
+                document.querySelectorAll('.pi-del-cat').forEach(btn => btn.addEventListener('click', async (e) => {
+                    const cat = e.target.getAttribute('data-cat');
+                    const confirm = await DialogSystem.confirm("Delete Category", `Delete '${cat}'? All links inside will be moved to 'General'.`);
+                    if (confirm) {
+                        piData.linkCategories = piData.linkCategories.filter(c => c !== cat);
+                        piData.links.forEach(l => { if((l.category || 'General') === cat) l.category = 'General'; });
+                        
+                        // Reset filter to All if they delete the currently viewed category
+                        if (activeLinkFilter === cat) activeLinkFilter = 'All';
+
+                        safeSave();
+                        renderPIView('links');
+                    }
+                }));
+
+                document.querySelectorAll('.pi-edit-link').forEach(btn => btn.addEventListener('click', (e) => openLinkEditor(e.target.getAttribute('data-id'), 'general')));
+            }
         }
         else if (viewName === 'parts') {
             const partsData = StateManager.getAppData('parts');
@@ -629,6 +757,19 @@ function initParkInfoLogic() {
         
         const targetArray = type === 'emergency' ? piData.emergencyLinks : piData.links;
         
+        if (type === 'emergency') {
+            document.getElementById('pi-link-cat-label').classList.add('hidden');
+            document.getElementById('pi-link-category').classList.add('hidden');
+        } else {
+            document.getElementById('pi-link-cat-label').classList.remove('hidden');
+            document.getElementById('pi-link-category').classList.remove('hidden');
+            let catSelect = document.getElementById('pi-link-category');
+            catSelect.innerHTML = '';
+            piData.linkCategories.forEach(cat => {
+                catSelect.innerHTML += `<option value="${cat}">${cat}</option>`;
+            });
+        }
+
         if (id) {
             const link = targetArray.find(l => l.id === id);
             document.getElementById('pi-link-title').innerText = type === 'emergency' ? "Edit Emergency Link" : "Edit Link";
@@ -636,6 +777,7 @@ function initParkInfoLogic() {
             document.getElementById('pi-link-name').value = link.title;
             document.getElementById('pi-link-url').value = link.url;
             document.getElementById('pi-link-desc').value = link.description || '';
+            if (type === 'general') document.getElementById('pi-link-category').value = link.category || 'General';
             delBtn.classList.remove('hidden');
         } else {
             document.getElementById('pi-link-title').innerText = type === 'emergency' ? "Add Emergency Link" : "Add Web Link";
@@ -658,7 +800,8 @@ function initParkInfoLogic() {
             id: id,
             title: document.getElementById('pi-link-name').value.trim(),
             url: document.getElementById('pi-link-url').value.trim(),
-            description: document.getElementById('pi-link-desc').value.trim()
+            description: document.getElementById('pi-link-desc').value.trim(),
+            category: type === 'emergency' ? null : document.getElementById('pi-link-category').value
         };
 
         const existingIdx = targetArray.findIndex(l => l.id === id);

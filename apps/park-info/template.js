@@ -43,6 +43,7 @@ function renderParkInfoApp() {
 
         <div id="pi-stage"></div>
 
+        <!-- Dynamic Universal Forms Modal -->
         <dialog id="pi-form-modal" style="width: 95%; max-width: 500px;">
             <div class="modal-header">
                 <h3 id="pi-form-title">Add Blank Form</h3>
@@ -69,6 +70,7 @@ function renderParkInfoApp() {
             </form>
         </dialog>
 
+        <!-- Dynamic Universal Links Modal -->
         <dialog id="pi-link-modal" style="width: 95%; max-width: 500px;">
             <div class="modal-header">
                 <h3 id="pi-link-title">Add Web Link</h3>
@@ -78,6 +80,9 @@ function renderParkInfoApp() {
                 <input type="hidden" id="pi-link-id">
                 <input type="hidden" id="pi-link-type" value="general">
                 
+                <label id="pi-link-cat-label">Category</label>
+                <select id="pi-link-category" class="app-select"></select>
+
                 <label>Link Title</label>
                 <input type="text" id="pi-link-name" class="app-input" required placeholder="e.g., State Parks Employee Portal">
                 
@@ -94,6 +99,7 @@ function renderParkInfoApp() {
             </form>
         </dialog>
 
+        <!-- Part Details Read-Only Modal -->
         <dialog id="pi-part-detail-modal" style="width: 95%; max-width: 450px;">
             <div class="modal-header">
                 <h3>Part Details</h3>
@@ -115,6 +121,7 @@ function renderParkInfoApp() {
             </div>
         </dialog>
 
+        <!-- Vehicle Details Read-Only Modal -->
         <dialog id="pi-vehicle-detail-modal" style="width: 95%; max-width: 500px;">
             <div class="modal-header">
                 <h3>Vehicle Details</h3>
@@ -147,6 +154,7 @@ function renderParkInfoApp() {
             </div>
         </dialog>
 
+        <!-- Image Lightbox Modal for Parts Tab -->
         <dialog id="pi-lightbox-modal" style="padding: 0; border: none; background: transparent; overflow: visible; outline: none; margin: auto;">
             <div style="position: relative; display: inline-block;">
                 <button id="pi-close-lightbox" class="btn-danger" style="position: absolute; top: -15px; right: -15px; border-radius: 50%; width: 35px; height: 35px; padding: 0; font-weight: bold; border: 2px solid white; z-index: 100; font-size: 1.2rem; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.5);">X</button>
