@@ -20,7 +20,7 @@ function initParkInfoLogic() {
 
     // State trackers
     let isLinksEditMode = false;
-    let activeLinkFilter = 'All'; // Keeps track of the currently selected dropdown category
+    let activeLinkFilter = 'All';
 
     // Set up tabs
     const tabs = document.querySelectorAll('.pi-tab');
@@ -28,8 +28,8 @@ function initParkInfoLogic() {
 
     tabs.forEach(tab => {
         tab.addEventListener('click', (e) => {
-            isLinksEditMode = false; // Reset edit mode on tab switch
-            activeLinkFilter = 'All'; // Reset filter on tab switch
+            isLinksEditMode = false; 
+            activeLinkFilter = 'All'; 
             tabs.forEach(t => { t.classList.remove('btn-primary'); t.classList.add('btn-outline'); });
             e.target.classList.remove('btn-outline'); e.target.classList.add('btn-primary');
             renderPIView(e.target.getAttribute('data-target'));
@@ -150,10 +150,7 @@ function initParkInfoLogic() {
                 NotificationSystem.show("Protocols Saved", "success");
             });
 
-            // Documents Triggers
             document.getElementById('pi-add-emerg-doc-btn').addEventListener('click', () => openFormEditor(null, 'emergency'));
-
-            // Links Triggers
             document.getElementById('pi-add-emerg-link-btn').addEventListener('click', () => openLinkEditor(null, 'emergency'));
             document.querySelectorAll('.pi-edit-link').forEach(btn => btn.addEventListener('click', (e) => openLinkEditor(e.target.getAttribute('data-id'), e.target.getAttribute('data-type'))));
             document.querySelectorAll('.pi-edit-form').forEach(btn => btn.addEventListener('click', (e) => openFormEditor(e.target.getAttribute('data-id'), 'emergency')));
@@ -170,7 +167,6 @@ function initParkInfoLogic() {
                     <button class="pi-form-sub-tab btn-outline" data-target="docs-list" style="flex:1;">Park Documents</button>
                 </div>
 
-                <!-- BLANK FORMS SUB-VIEW -->
                 <div id="pi-view-forms-list" class="pi-sub-view">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                         <p style="color: var(--text-secondary); margin: 0;">System-generated checklists and custom blank forms.</p>
@@ -212,7 +208,6 @@ function initParkInfoLogic() {
 
             html += `</tbody></table></div></div>`;
 
-            // PARK DOCUMENTS SUB-VIEW
             html += `
                 <div id="pi-view-docs-list" class="pi-sub-view" style="display: none;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
@@ -244,7 +239,6 @@ function initParkInfoLogic() {
             html += `</tbody></table></div></div></div>`;
             stage.innerHTML = html;
 
-            // Sub-Tab Toggling
             document.querySelectorAll('.pi-form-sub-tab').forEach(tab => {
                 tab.addEventListener('click', (e) => {
                     document.querySelectorAll('.pi-form-sub-tab').forEach(t => { t.classList.remove('btn-primary'); t.classList.add('btn-outline'); });
@@ -255,48 +249,38 @@ function initParkInfoLogic() {
                 });
             });
 
-            // Clean Direct-to-Print Generation
+            // --- NATIVE IN-DOM PRINTING MATCHING SOURCE EXACTLY ---
             document.querySelectorAll('.pi-print-native').forEach(btn => btn.addEventListener('click', (e) => {
                 const formType = e.target.getAttribute('data-form');
                 let blankHtml = '';
-                let title = '';
                 
+                // Inject the exact CSS from the native modules into the print stage
+                const printCss = `
+                    <style>
+                        @media print {
+                            .print-area-block { page-break-after: always; padding: 0 !important; margin: 0 !important; }
+                            .wint-task-table { border-collapse: collapse !important; width: 100% !important; margin-bottom: 10px !important; border: 2px solid black !important; background: white !important; }
+                            .wint-task-table th, .wint-task-table td { border: 1px solid black !important; padding: 4px !important; font-size: 0.9rem !important; }
+                            .print-blank-line { width: 90%; min-height: 20px; margin: auto; border-bottom: 1px solid black; }
+                        }
+                    </style>
+                `;
+
                 if (formType === 'fleet') {
-                    title = "Monthly Vehicle Inspection";
                     const fleetData = StateManager.getAppData('fleet');
                     if (!fleetData || !fleetData.settings || !fleetData.settings.checklistItems) return NotificationSystem.show("Fleet module not configured.", "error");
                     
-                    blankHtml = `<div class="page-break">
-                    <h2 style="text-align:center; border-bottom:2px solid #000; padding-bottom: 10px;">Monthly Vehicle Inspection</h2>
-                    <div style="display:flex; justify-content:space-between; margin-bottom:20px; font-weight: bold; font-size: 1.1rem;">
-                        <div>Vehicle: _________________</div>
-                        <div>Date: _________________</div>
-                        <div>Inspector: _________________</div>
-                        <div>Odometer: _________________</div>
-                    </div>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th style="width: 35%;">Item</th>
-                                <th style="width: 15%; text-align: center;">Result</th>
-                                <th style="width: 35%;">Item</th>
-                                <th style="width: 15%; text-align: center;">Result</th>
-                            </tr>
-                        </thead>
-                        <tbody>`;
+                    blankHtml = `<div style="page-break-after:always; margin-bottom: 20px;"><h2 style="text-align:center; border-bottom:2px solid #000; padding-bottom: 10px;">Monthly Vehicle Inspection</h2>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; margin-bottom:15px; font-size:12px;"><div><strong>Vehicle:</strong> ________________</div><div><strong>Date:</strong> ________________</div><div><strong>Inspector:</strong> ________________</div><div><strong>Odometer:</strong> ________________</div></div>
+                    <table style="width:100%; border-collapse:collapse; font-size:12px;"><thead><tr><th style="border:1px solid #000; background:#eee; padding:5px;">Item</th><th style="border:1px solid #000; background:#eee; padding:5px;">Result</th><th style="border:1px solid #000; background:#eee; padding:5px;">Item</th><th style="border:1px solid #000; background:#eee; padding:5px;">Result</th></tr></thead><tbody>`;
                     
                     const cl = fleetData.settings.checklistItems;
                     for(let i=0; i<cl.length; i+=2) {
-                        blankHtml += `<tr>
-                            <td><strong>${cl[i]}</strong></td>
-                            <td style="text-align: center;">Pass / Fail / NA</td>
-                            ${cl[i+1] ? `<td><strong>${cl[i+1]}</strong></td><td style="text-align: center;">Pass / Fail / NA</td>` : `<td></td><td></td>`}
-                        </tr>`;
+                        blankHtml += `<tr><td style="border:1px solid #000; padding:8px;">${cl[i]}</td><td style="border:1px solid #000; padding:8px;">Pass / Fail / NA</td>${cl[i+1] ? `<td style="border:1px solid #000; padding:8px;">${cl[i+1]}</td><td style="border:1px solid #000; padding:8px;">Pass / Fail / NA</td>` : `<td></td><td></td>`}</tr>`;
                     }
                     blankHtml += `</tbody></table></div>`;
                 } 
                 else if (formType === 'fall' || formType === 'spring') {
-                    title = formType === 'fall' ? 'Fall Winterization Checklist' : 'Spring De-Winterization Checklist';
                     const wintData = StateManager.getAppData('winterization');
                     if (!wintData || !wintData[formType]) return NotificationSystem.show("Winterization module not configured.", "error");
 
@@ -305,45 +289,44 @@ function initParkInfoLogic() {
                     Object.keys(wintData[formType]).forEach(area => {
                         const seasonData = wintData[formType][area];
                         
-                        let areaHtml = `<div class="page-break">`;
-                        areaHtml += `<h2 style="margin-top: 0; margin-bottom: 15px; padding-bottom: 5px; border-bottom: 2px solid black;">${yearPrefix}${formType.toUpperCase()} - ${area}</h2>`;
+                        let areaHtml = `<div class="print-area-block">`;
+                        areaHtml += `<h2 style="margin-bottom: 10px; padding-bottom: 5px; border-bottom: 2px solid black;">${yearPrefix}${formType.toUpperCase()} - ${area}</h2>`;
                         
                         if (seasonData.tools) {
                             areaHtml += `
-                                <div style="background-color: #f9f9f9; padding: 15px; border-radius: 8px; border-left: 4px solid #555; margin-bottom: 20px;">
-                                    <h4 style="margin: 0 0 5px 0;">🛠️ Tools & Equipment Needed</h4>
-                                    <p style="white-space: pre-wrap; margin: 0;">${seasonData.tools}</p>
+                                <div style="background-color: rgba(0,0,0,0.03); padding: 15px; border-radius: var(--radius-md); border-left: 4px solid var(--accent-primary); margin-bottom: 20px;">
+                                    <h4 style="margin-bottom: 5px;">🛠️ Tools & Equipment Needed</h4>
+                                    <p style="white-space: pre-wrap; font-size: 0.95rem; margin: 0;">${seasonData.tools}</p>
                                 </div>
                             `;
                         }
 
                         seasonData.sections.forEach(section => {
                             if (section.category === "WARNING") {
-                                areaHtml += `<div style="background-color: ${section.isCritical ? '#ffe6e6' : '#fff3cd'}; color: ${section.isCritical ? '#cc0000' : '#000'}; padding: 15px; font-weight: bold; border-left: 5px solid ${section.isCritical ? '#cc0000' : '#000'}; margin-bottom: 20px; border-radius: 4px;">${section.warningText}</div>`;
+                                areaHtml += `<div style="background-color: ${section.isCritical ? '#ffe6e6' : 'var(--warning-color)'}; color: ${section.isCritical ? '#cc0000' : '#000'}; padding: 15px; font-weight: bold; border-left: 5px solid ${section.isCritical ? '#cc0000' : '#000'}; margin-bottom: 20px; border-radius: 4px;">${section.warningText}</div>`;
                                 return; 
                             }
 
-                            areaHtml += `<div style="margin-bottom: 30px;">
-                                <h3 style="background-color: #f0f0f0; padding: 8px; border-radius: 4px; margin-bottom: 10px;">${section.category}</h3>`;
+                            areaHtml += `<div style="margin-bottom: 30px;"><h3 style="background-color: rgba(0,0,0,0.04); padding: 8px; border-radius: 4px; margin-bottom: 15px;">${section.category}</h3><div style="width: 100%; overflow-x: auto;">`;
                             
                             let columnsToRender = section.columns ? section.columns : ["Action"];
-                            let tableHtml = `<table><thead><tr><th style="width: 40%;">Item</th>`;
+                            let tableHtml = `<table class="wint-task-table" style="width: 100%; border-collapse: collapse;"><thead><tr><th style="padding:10px; border:1px solid var(--border-color); background:rgba(0,0,0,0.03);">Item</th>`;
                             
                             columnsToRender.forEach((col) => { 
-                                tableHtml += `<th style="width: 130px; text-align: center;">${col} (Date)</th>
-                                              <th style="width: 100px; text-align: center;">Initials</th>`; 
+                                tableHtml += `<th style="padding:10px; border:1px solid var(--border-color); background:rgba(0,0,0,0.03); width: 130px; text-align: center;">${col} (Date)</th>
+                                              <th style="padding:10px; border:1px solid var(--border-color); background:rgba(0,0,0,0.03); width: 130px; text-align: center;">Initials</th>`; 
                             });
                             tableHtml += `</tr></thead><tbody>`;
 
                             section.tasks.forEach((task) => {
-                                tableHtml += `<tr><td><strong>${task.text}</strong></td>`;
+                                tableHtml += `<tr><td style="padding:10px; border:1px solid var(--border-color);"><div style="display:flex; justify-content:space-between; align-items:center;"><strong>${task.text}</strong></div></td>`;
                                 columnsToRender.forEach(() => {
-                                    tableHtml += `<td style="text-align:center; vertical-align:bottom;"><div style="width: 90%; margin: 15px auto 5px auto; border-bottom: 1px solid black;"></div></td>
-                                                  <td style="text-align:center; vertical-align:bottom;"><div style="width: 90%; margin: 15px auto 5px auto; border-bottom: 1px solid black;"></div></td>`;
+                                    tableHtml += `<td style="border:1px solid #000; text-align:center;"><div class="print-blank-line"></div></td>
+                                                  <td style="border:1px solid #000; text-align:center;"><div class="print-blank-line"></div></td>`;
                                 });
                                 tableHtml += `</tr>`;
                             });
-                            tableHtml += `</tbody></table></div>`;
+                            tableHtml += `</tbody></table></div></div>`;
                             areaHtml += tableHtml;
                         });
                         areaHtml += `</div>`;
@@ -351,47 +334,17 @@ function initParkInfoLogic() {
                     });
                 }
                 
-                // Direct Printing Pipeline
-                const win = window.open('', '_blank');
-                win.document.write(`
-                    <!DOCTYPE html>
-                    <html>
-                    <head>
-                        <title>Print: ${title}</title>
-                        <style>
-                            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #000; background: #fff; margin: 0; padding: 20px; }
-                            table { width: 100%; border-collapse: collapse; margin-bottom: 30px; page-break-inside: auto; }
-                            tr { page-break-inside: avoid; page-break-after: auto; }
-                            thead { display: table-header-group; }
-                            th, td { border: 1px solid #000; padding: 8px; text-align: left; font-size: 0.9rem; }
-                            th { background-color: #f2f2f2; font-weight: bold; }
-                            .page-break { page-break-after: always; clear: both; margin-bottom: 20px; }
-                            @page { size: letter; margin: 0.5in; }
-                        </style>
-                    </head>
-                    <body>
-                        ${blankHtml}
-                        <script>
-                            window.onload = () => { 
-                                setTimeout(() => { window.print(); }, 250); 
-                            };
-                        </script>
-                    </body>
-                    </html>
-                `);
-                win.document.close();
+                const printStage = document.getElementById('pi-print-stage');
+                printStage.innerHTML = printCss + blankHtml;
+                setTimeout(() => { window.print(); }, 150);
             }));
 
-            // Custom Forms & Docs Listeners
             document.getElementById('pi-add-form-btn').addEventListener('click', () => openFormEditor(null, 'forms'));
             document.getElementById('pi-add-doc-btn').addEventListener('click', () => openFormEditor(null, 'docs'));
-            
-            // Attach global edit listener for all generated forms/docs buttons in this view
             document.querySelectorAll('.pi-edit-form').forEach(btn => btn.addEventListener('click', (e) => openFormEditor(e.target.getAttribute('data-id'), e.target.getAttribute('data-type'))));
         }
         else if (viewName === 'links') {
             
-            // Build Filter Options
             let filterOptions = `<option value="All" ${activeLinkFilter === 'All' ? 'selected' : ''}>All Categories</option>`;
             piData.linkCategories.forEach(c => {
                 filterOptions += `<option value="${c}" ${activeLinkFilter === c ? 'selected' : ''}>${c}</option>`;
@@ -418,12 +371,9 @@ function initParkInfoLogic() {
             `;
 
             piData.linkCategories.forEach(cat => {
-                // If filter is active and doesn't match this category, skip rendering it entirely
                 if (activeLinkFilter !== 'All' && activeLinkFilter !== cat) return;
 
                 const catLinks = piData.links.filter(l => (l.category || 'General') === cat);
-                
-                // Hide empty categories unless we are in Edit Mode
                 if (catLinks.length === 0 && !isLinksEditMode) return; 
 
                 html += `
