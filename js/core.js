@@ -221,10 +221,21 @@ const CoreSystem = {
     generateHomeDashboard: function() {
         const state = StateManager.loadGlobalState();
         
-        // Park Info Glance
-        let linkCount = state.apps.parkInfo?.links?.length || 0;
-        let formCount = state.apps.parkInfo?.forms?.length || 0;
+        // --- Calculate Dashboard Variables ---
 
+        // Projects Glance
+        let activeProjects = 0;
+        let priorityProjects = 0;
+        if (state.apps.projects && state.apps.projects.tasks) {
+            state.apps.projects.tasks.forEach(t => {
+                if (t.status !== 'Completed') {
+                    activeProjects++;
+                    if (t.priority === 'High') priorityProjects++;
+                }
+            });
+        }
+
+        // Inventory Glance
         let lowInvCount = 0;
         if (state.apps.inventory && state.apps.inventory.items) {
             state.apps.inventory.items.forEach(item => {
@@ -238,6 +249,7 @@ const CoreSystem = {
             });
         }
 
+        // Fleet Glance
         let vehiclesNeedingRepair = 0;
         let vehiclesNeedingInsp = 0;
         let totalVehicles = state.apps.fleet?.vehicles?.length || 0;
@@ -269,8 +281,10 @@ const CoreSystem = {
             });
         }
 
+        // First Aid Glance
         let firstAidKits = state.apps.firstAid?.categories?.length || 0;
 
+        // Parts Glance
         let lowParts = 0;
         let criticalOut = 0;
         if (state.apps.parts && state.apps.parts.partsCatalog) {
@@ -280,17 +294,8 @@ const CoreSystem = {
             });
         }
 
-        let activeProjects = 0;
-        let priorityProjects = 0;
-        if (state.apps.projects && state.apps.projects.tasks) {
-            state.apps.projects.tasks.forEach(t => {
-                if (t.status !== 'Completed') {
-                    activeProjects++;
-                    if (t.priority === 'High') priorityProjects++;
-                }
-            });
-        }
-
+        // Generate the grid strictly in the requested order:
+        // Park Info, Projects, Inventory, Fleet, Winter Ops, First Aid, Parts
         return `
             <div style="padding: 2rem;">
                 <h1 style="margin-bottom: 20px;">System Overview</h1>
@@ -298,8 +303,7 @@ const CoreSystem = {
                     
                     <div class="app-card searchable-card" style="cursor: pointer; border-top: 4px solid var(--accent-primary); transition: transform 0.2s;" onclick="CoreSystem.routeToApp('parkInfo')" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
                         <h3 style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;"><span style="font-size: 1.5rem;">🌲</span> Park Info</h3>
-                        <p><strong>${formCount}</strong> Forms | <strong>${linkCount}</strong> Links</p>
-                        <p style="color: var(--text-secondary); margin-top: 5px;">Access emergency protocols, links, and quick-print resources.</p>
+                        <p style="color: var(--text-secondary); margin-top: 5px;">Access emergency protocols, P.O.S, links, and quick-print resources.</p>
                     </div>
 
                     <div class="app-card searchable-card" style="cursor: pointer; border-top: 4px solid var(--accent-primary); transition: transform 0.2s;" onclick="CoreSystem.routeToApp('projects')" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
