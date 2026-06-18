@@ -113,16 +113,22 @@ function initInventoryLogic() {
 
     let pendingAuditSku = null;
     let html5QrCode = null;
+    let qrExportInterval = null;
     let torchOn = false;
 
     function renderInvView(viewName) {
         stage.innerHTML = '';
         
-        if (viewName !== 'audit' && html5QrCode) {
+        // Clean up scanners/intervals universally on view swap
+        if (html5QrCode) {
             html5QrCode.stop().then(() => {
                 html5QrCode.clear();
                 html5QrCode = null;
             }).catch(err => console.error("Scanner clear failed", err));
+        }
+        if (qrExportInterval) {
+            clearInterval(qrExportInterval);
+            qrExportInterval = null;
         }
 
         if (viewName !== 'reports') populateCategoryDatalist();
@@ -445,13 +451,13 @@ function initInventoryLogic() {
                 }
             });
         }
-        else if (viewName === 'audit') {
+else if (viewName === 'audit') {
             stage.innerHTML = `
             <div class="app-card" style="text-align: center; max-width: 600px; margin: 0 auto;">
                 <h3 style="margin-bottom: 15px;">Inventory Audit Scanner</h3>
                 <input type="text" id="audit-manual-sku" class="app-input" placeholder="Type SKU manually and hit Enter..." style="font-size: 1.2rem; text-align: center; margin-bottom: 20px;">
                 
-                <div id="camera-controls" class="hidden" style="margin-bottom: 15px; padding: 15px; background: rgba(0,0,0,0.02); border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+                <div id="camera-controls" style="display: none; margin-bottom: 15px; padding: 15px; background: rgba(0,0,0,0.02); border-radius: var(--radius-md); border: 1px solid var(--border-color);">
                     <button type="button" id="toggle-torch-btn" class="btn-outline" style="width: 100%; margin-bottom: 15px; border-color: #f39c12; color: #f39c12;">🔦 Toggle Flashlight</button>
                     
                     <label style="display:flex; justify-content: space-between; font-size: 0.9rem; font-weight: bold; margin-bottom: 5px;">Camera Zoom: <span id="zoom-val">1x</span></label>
@@ -462,7 +468,7 @@ function initInventoryLogic() {
                 <div id="reader" style="width: 100%; margin: 0 auto 20px auto;"></div>
                 <button id="start-scanner" class="btn-outline" style="width: 100%; margin-bottom: 20px;">📷 Start Camera Scanner</button>
                 
-                <div id="audit-form-area" class="hidden" style="background: rgba(0,0,0,0.03); padding: 20px; border-radius: var(--radius-md); border: 1px solid var(--accent-primary);">
+                <div id="audit-form-area" style="display: none; background: rgba(0,0,0,0.03); padding: 20px; border-radius: var(--radius-md); border: 1px solid var(--accent-primary);">
                     <h2 id="audit-item-name" style="color: var(--accent-primary); margin-bottom: 10px;">Item Name</h2>
                     <p style="font-size: 1.1rem; margin-bottom: 5px;">SKU: <strong id="audit-sku-lbl"></strong></p>
                     <p style="font-size: 1.1rem; margin-bottom: 15px;">System Qty: <strong id="audit-sys-qty"></strong></p>
@@ -496,9 +502,9 @@ function initInventoryLogic() {
                         }).catch(err => console.log(err)); 
                         startBtn.style.display = 'block'; 
                     }
-                    readerDiv.classList.add('hidden');
-                    startBtn.classList.add('hidden');
-                    camControls.classList.add('hidden');
+                    readerDiv.style.display = 'none';
+                    startBtn.style.display = 'none';
+                    camControls.style.display = 'none';
                     
                     DialogSystem.confirm("Barcode Not Found", `The SKU [${sku}] isn't in your master list. Do you want to add it now?`)
                     .then(confirm => {
@@ -507,7 +513,7 @@ function initInventoryLogic() {
                             document.getElementById('inv-add-modal').showModal();
                         } else {
                             document.getElementById('audit-manual-sku').value = '';
-                            startBtn.classList.remove('hidden');
+                            startBtn.style.display = 'block';
                         }
                     });
                     return;
@@ -528,10 +534,10 @@ function initInventoryLogic() {
                 document.getElementById('audit-hidden-sku').value = item.sku;
                 document.getElementById('audit-phys-qty').value = '';
                 
-                readerDiv.classList.add('hidden'); 
-                startBtn.classList.add('hidden');
-                camControls.classList.add('hidden');
-                formArea.classList.remove('hidden');
+                readerDiv.style.display = 'none'; 
+                startBtn.style.display = 'none';
+                camControls.style.display = 'none';
+                formArea.style.display = 'block';
                 document.getElementById('audit-phys-qty').focus();
             };
 
@@ -539,7 +545,7 @@ function initInventoryLogic() {
 
             startBtn.addEventListener('click', () => {
                 startBtn.style.display = 'none'; 
-                readerDiv.classList.remove('hidden');
+                readerDiv.style.display = 'block';
                 
                 html5QrCode = new Html5Qrcode("reader");
                 html5QrCode.start(
@@ -548,7 +554,7 @@ function initInventoryLogic() {
                     (decodedText) => { loadAuditItem(decodedText.trim().toUpperCase()); },
                     (err) => {}
                 ).then(() => {
-                    camControls.classList.remove('hidden');
+                    camControls.style.display = 'block';
                     html5QrCode.applyVideoConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {});
 
                     const zoomSlider = document.getElementById('camera-zoom-slider');
@@ -564,7 +570,7 @@ function initInventoryLogic() {
                 }).catch((err) => {
                     NotificationSystem.show("Camera access denied or rear camera unavailable.", "error");
                     startBtn.style.display = 'block';
-                    readerDiv.classList.add('hidden');
+                    readerDiv.style.display = 'none';
                 });
             });
 
@@ -589,9 +595,8 @@ function initInventoryLogic() {
             });
 
             document.getElementById('cancel-audit-btn').addEventListener('click', () => {
-                formArea.classList.add('hidden'); 
-                readerDiv.classList.remove('hidden'); 
-                startBtn.classList.remove('hidden'); 
+                formArea.style.display = 'none'; 
+                readerDiv.style.display = 'block'; 
                 startBtn.style.display = 'block';
                 document.getElementById('audit-manual-sku').value = '';
             });
@@ -614,10 +619,9 @@ function initInventoryLogic() {
                     NotificationSystem.show('Count verified and logged.', 'success');
                 }
                 
-                formArea.classList.add('hidden'); 
-                readerDiv.classList.remove('hidden'); 
+                formArea.style.display = 'none'; 
+                readerDiv.style.display = 'block'; 
                 startBtn.style.display = 'block'; 
-                startBtn.classList.remove('hidden');
                 document.getElementById('audit-manual-sku').value = '';
             });
 
@@ -637,77 +641,130 @@ function initInventoryLogic() {
             stage.innerHTML = `
             <div class="inv-split-layout">
                 
-                <div class="app-card inv-no-print" style="border-left: 4px solid var(--accent-primary);">
-                    <h3 style="margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">Yearly Usage & Spend Report</h3>
-                    <p style="color: var(--text-secondary); margin-bottom: 15px;">Define a date range to calculate total item usage and financial restocking cost.</p>
-                    
-                    <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 20px; align-items: flex-end;">
-                        <div style="flex: 1; min-width: 150px;">
-                            <label style="font-weight: bold; font-size: 0.9rem;">Start Date</label>
-                            <input type="date" id="report-start" class="app-input" value="${lastYearStr}" style="margin-bottom: 0;">
-                        </div>
-                        <div style="flex: 1; min-width: 150px;">
-                            <label style="font-weight: bold; font-size: 0.9rem;">End Date</label>
-                            <input type="date" id="report-end" class="app-input" value="${todayStr}" style="margin-bottom: 0;">
-                        </div>
-                        <button id="generate-report-btn" class="btn-primary" style="flex: 1; min-width: 150px; padding: 11px;">📊 Generate Report</button>
+                <div class="app-card inv-no-print" style="padding: 0; overflow: hidden; border-left: 4px solid var(--accent-primary);">
+                    <div class="accordion-header" style="padding: 15px; cursor: pointer; background: var(--bg-surface); display: flex; justify-content: space-between; align-items: center;">
+                        <h3 style="margin: 0;">📊 Yearly Usage & Spend Report</h3>
+                        <span class="acc-icon" style="font-weight: bold; font-size: 1.2rem;">▼</span>
                     </div>
-                    
-                    <div id="inv-report-print-controls" class="hidden" style="display: flex; gap: 10px; margin-bottom: 20px; background: rgba(0,0,0,0.03); padding: 15px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
-                        <button id="btn-inv-print-summary" class="btn-outline" style="flex: 1;">🖨️ Print Summary Only</button>
-                        <button id="btn-inv-print-log" class="btn-outline" style="flex: 1;">🖨️ Print Details Only</button>
-                        <button id="btn-inv-print-full" class="btn-primary" style="flex: 1;">🖨️ Print Full Report</button>
-                    </div>
+                    <div class="accordion-content" style="display: none; padding: 15px; border-top: 1px solid var(--border-color);">
+                        <p style="color: var(--text-secondary); margin-bottom: 15px;">Define a date range to calculate total item usage and financial restocking cost.</p>
+                        
+                        <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 20px; align-items: flex-end;">
+                            <div style="flex: 1; min-width: 150px;">
+                                <label style="font-weight: bold; font-size: 0.9rem;">Start Date</label>
+                                <input type="date" id="report-start" class="app-input" value="${lastYearStr}" style="margin-bottom: 0;">
+                            </div>
+                            <div style="flex: 1; min-width: 150px;">
+                                <label style="font-weight: bold; font-size: 0.9rem;">End Date</label>
+                                <input type="date" id="report-end" class="app-input" value="${todayStr}" style="margin-bottom: 0;">
+                            </div>
+                            <button id="generate-report-btn" class="btn-primary" style="flex: 1; min-width: 150px; padding: 11px;">📊 Generate Report</button>
+                        </div>
+                        
+                        <div id="inv-report-print-controls" style="display: none; gap: 10px; margin-bottom: 20px; background: rgba(0,0,0,0.03); padding: 15px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+                            <button id="btn-inv-print-summary" class="btn-outline" style="flex: 1;">🖨️ Print Summary Only</button>
+                            <button id="btn-inv-print-log" class="btn-outline" style="flex: 1;">🖨️ Print Details Only</button>
+                            <button id="btn-inv-print-full" class="btn-primary" style="flex: 1;">🖨️ Print Full Report</button>
+                        </div>
 
-                    <div id="report-results-container" class="app-table-container hidden" style="margin-top: 20px; max-height: 500px; overflow-y: auto; padding-right: 5px;"></div>
+                        <div id="report-results-container" class="app-table-container" style="display: none; margin-top: 20px; max-height: 500px; overflow-y: auto; padding-right: 5px;"></div>
+                    </div>
                 </div>
 
-                <div class="app-card inv-no-print">
-                    <h3 style="margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">Database Sync & Backup</h3>
-                    
-                    <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
-                        <input type="file" id="csv-import-items" accept=".csv" class="hidden">
-                        <button class="btn-outline" style="flex: 1; min-width: 200px;" onclick="document.getElementById('csv-import-items').click()">📥 Import Items (CSV)</button>
-                        
-                        <input type="file" id="csv-import-trans" accept=".csv" class="hidden">
-                        <button class="btn-outline" style="flex: 1; min-width: 200px;" onclick="document.getElementById('csv-import-trans').click()">📥 Import Trans (CSV)</button>
+                <div class="app-card inv-no-print" style="padding: 0; overflow: hidden; border-left: 4px solid var(--accent-primary);">
+                    <div class="accordion-header" style="padding: 15px; cursor: pointer; background: var(--bg-surface); display: flex; justify-content: space-between; align-items: center;">
+                        <h3 style="margin: 0;">🔄 Database Sync & Backup</h3>
+                        <span class="acc-icon" style="font-weight: bold; font-size: 1.2rem;">▼</span>
                     </div>
+                    <div class="accordion-content" style="display: none; padding: 15px; border-top: 1px solid var(--border-color);">
+                        
+                        <h4 style="margin-bottom: 10px;">Import / Export CSV</h4>
+                        <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
+                            <input type="file" id="csv-import-items" accept=".csv" style="display:none;">
+                            <button class="btn-outline" style="flex: 1; min-width: 200px;" onclick="document.getElementById('csv-import-items').click()">📥 Import Items (CSV)</button>
+                            
+                            <input type="file" id="csv-import-trans" accept=".csv" style="display:none;">
+                            <button class="btn-outline" style="flex: 1; min-width: 200px;" onclick="document.getElementById('csv-import-trans').click()">📥 Import Trans (CSV)</button>
+                        </div>
 
-                    <h4 style="margin-top: 20px; margin-bottom: 10px;">Full Inventory Sync (JSON)</h4>
-                    <p style="color: var(--text-secondary); margin-bottom: 10px; font-size: 0.85rem;">Export or merge complete inventory state (items, categories, and transactions) to sync across devices.</p>
-                    
-                    <button id="export-inv-json-btn" class="btn-primary" style="width: 100%; margin-bottom: 10px;">⬇️ Export Inventory Sync File (.json)</button>
-                    
-                    <input type="file" id="import-inv-json-file" accept=".json" class="hidden">
-                    <button class="btn-outline" style="width: 100%; margin-bottom: 10px; border-color: var(--accent-primary); color: var(--accent-primary);" onclick="document.getElementById('import-inv-json-file').click()">🔄 Merge Sync File (.json)</button>
+                        <h4 style="margin-top: 20px; margin-bottom: 10px;">QR Code Data Transfer</h4>
+                        <p style="color: var(--text-secondary); margin-bottom: 15px; font-size: 0.85rem;">Use a second device to scan and transfer your inventory database completely offline.</p>
+                        
+                        <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--border-color);">
+                            <button id="inv-export-qr-btn" class="btn-primary" style="padding: 12px; font-size: 1.05rem;">📲 Generate QR Sync Stream</button>
+                            <div id="inv-qr-export-container" style="display: none; flex-direction: column; align-items: center; padding: 15px; background: white; border-radius: var(--radius-md); border: 2px solid var(--accent-primary);">
+                                <div id="inv-qr-canvas" style="width: 200px; height: 200px; display: flex; justify-content: center; align-items: center;"></div>
+                                <p id="inv-qr-export-status" style="margin-top: 15px; font-weight: bold; color: var(--accent-primary);">Initializing...</p>
+                                <button id="inv-qr-export-stop" class="btn-danger" style="margin-top: 10px; width: 100%;">Stop Transmission</button>
+                            </div>
+
+                            <button id="inv-import-qr-btn" class="btn-primary" style="padding: 12px; font-size: 1.05rem;">📷 Scan QR to Import</button>
+                            <div id="inv-qr-import-container" style="display: none; flex-direction: column; gap: 10px;">
+                                <div id="inv-qr-reader" style="width: 100%; min-height: 250px; background: #000; border-radius: var(--radius-md); overflow: hidden; border: 2px solid var(--accent-primary);"></div>
+                                <div style="text-align: center; font-weight: bold; color: var(--accent-primary);">
+                                    <span id="inv-qr-import-status">Waiting for stream...</span>
+                                    <progress id="inv-qr-import-progress" value="0" max="100" style="width: 100%; height: 10px; margin-top: 5px;"></progress>
+                                </div>
+                                <button id="inv-qr-import-stop" class="btn-danger" style="width: 100%;">Stop Scanner</button>
+                            </div>
+                        </div>
+
+                        <h4 style="margin-top: 20px; margin-bottom: 10px;">Full Inventory Sync (JSON)</h4>
+                        <p style="color: var(--text-secondary); margin-bottom: 10px; font-size: 0.85rem;">Export or merge complete inventory state (items, categories, and transactions) using a physical file.</p>
+                        
+                        <button id="export-inv-json-btn" class="btn-outline" style="width: 100%; margin-bottom: 10px;">⬇️ Export Inventory Sync File (.json)</button>
+                        
+                        <input type="file" id="import-inv-json-file" accept=".json" style="display:none;">
+                        <button class="btn-outline" style="width: 100%; margin-bottom: 10px; border-color: var(--accent-primary); color: var(--accent-primary);" onclick="document.getElementById('import-inv-json-file').click()">🔄 Merge Sync File (.json)</button>
+                    </div>
                 </div>
                 
-                <div class="app-card inv-no-print">
-                    <h3 style="margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">Category Manager</h3>
-                    <p style="color: var(--text-secondary); margin-bottom: 15px;">Add or soft-delete categories in the master list. Soft-deleted categories won't appear in the dropdown but existing items are unaffected.</p>
-                    
-                    <div style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;">
-                        <input type="text" id="new-master-cat" class="app-input" placeholder="New category name..." style="flex: 2; min-width: 200px; margin-bottom: 0;">
-                        <button id="add-master-cat" class="btn-primary" style="flex: 1; min-width: 150px;">+ Add to Master</button>
+                <div class="app-card inv-no-print" style="padding: 0; overflow: hidden; border-left: 4px solid var(--accent-primary);">
+                    <div class="accordion-header" style="padding: 15px; cursor: pointer; background: var(--bg-surface); display: flex; justify-content: space-between; align-items: center;">
+                        <h3 style="margin: 0;">⚙️ Category Manager</h3>
+                        <span class="acc-icon" style="font-weight: bold; font-size: 1.2rem;">▼</span>
                     </div>
-                    
-                    <div class="app-table-container" style="max-height: 250px; overflow-y: auto;">
-                        <table class="app-table">
-                            <thead><tr><th>Active Master Categories</th><th style="width: 50px; text-align: center;">⚙️</th></tr></thead>
-                            <tbody>
-                                ${invData.categories.map((cat, index) => `
-                                    <tr>
-                                        <td>${cat}</td>
-                                        <td style="text-align: center;">
-                                            <button class="btn-danger delete-master-cat" data-index="${index}" style="padding: 2px 6px; font-size: 0.8rem;">X</button>
-                                        </td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
+                    <div class="accordion-content" style="display: none; padding: 15px; border-top: 1px solid var(--border-color);">
+                        <p style="color: var(--text-secondary); margin-bottom: 15px;">Add or soft-delete categories in the master list. Soft-deleted categories won't appear in the dropdown but existing items are unaffected.</p>
+                        
+                        <div style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;">
+                            <input type="text" id="new-master-cat" class="app-input" placeholder="New category name..." style="flex: 2; min-width: 200px; margin-bottom: 0;">
+                            <button id="add-master-cat" class="btn-primary" style="flex: 1; min-width: 150px;">+ Add to Master</button>
+                        </div>
+                        
+                        <div class="app-table-container" style="max-height: 250px; overflow-y: auto;">
+                            <table class="app-table">
+                                <thead><tr><th>Active Master Categories</th><th style="width: 50px; text-align: center;">⚙️</th></tr></thead>
+                                <tbody>
+                                    ${invData.categories.map((cat, index) => `
+                                        <tr>
+                                            <td>${cat}</td>
+                                            <td style="text-align: center;">
+                                                <button class="btn-danger delete-master-cat" data-index="${index}" style="padding: 2px 6px; font-size: 0.8rem;">X</button>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>`;
+
+            // Accordion Logic
+            document.querySelectorAll('.accordion-header').forEach(header => {
+                header.addEventListener('click', () => {
+                    const content = header.nextElementSibling;
+                    const icon = header.querySelector('.acc-icon');
+                    if (content.style.display === 'none' || content.style.display === '') {
+                        content.style.display = 'block';
+                        icon.innerText = '▲';
+                    } else {
+                        content.style.display = 'none';
+                        icon.innerText = '▼';
+                    }
+                });
+            });
 
             // Report Generator Logic
             document.getElementById('generate-report-btn').addEventListener('click', () => {
@@ -732,7 +789,6 @@ function initInventoryLogic() {
                     };
                 });
 
-                // Group transactions by item for the detailed view
                 let hasLogs = false;
                 const groupedTxns = {};
 
@@ -743,7 +799,6 @@ function initInventoryLogic() {
                         if (!groupedTxns[t.sku]) groupedTxns[t.sku] = [];
                         groupedTxns[t.sku].push(t);
                         
-                        // Process Summary Math
                         if (usageStats[t.sku]) {
                             const qty = parseFloat(t.quantity);
                             if (t.type === 'Stock In') {
@@ -758,7 +813,6 @@ function initInventoryLogic() {
                     }
                 });
 
-                // Generate Summary Table HTML
                 let summaryHtml = `
                 <div id="inv-report-section-summary">
                     <h4 style="margin-bottom: 10px; color: var(--accent-primary);">Acquisition & Burn Summary</h4>
@@ -816,7 +870,6 @@ function initInventoryLogic() {
                 </div>`;
 
 
-                // Generate Detailed Grouped Logs HTML
                 let logHtml = `<div id="inv-report-section-log"><h4 style="margin-bottom: 10px; color: var(--accent-primary);">Detailed Audit & Transaction Log</h4>`;
                 
                 if (!hasLogs) {
@@ -841,7 +894,6 @@ function initInventoryLogic() {
                                 <tbody>
                         `;
                         
-                        // Sort grouped transactions chronologically descending
                         groupedTxns[sku].sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(txn => {
                             const dateFmt = new Date(txn.date).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
                             const isAudit = txn.type === 'Audit Correction';
@@ -874,8 +926,8 @@ function initInventoryLogic() {
 
                 const resultsContainer = document.getElementById('report-results-container');
                 resultsContainer.innerHTML = summaryHtml + logHtml;
-                resultsContainer.classList.remove('hidden');
-                document.getElementById('inv-report-print-controls').classList.remove('hidden');
+                resultsContainer.style.display = 'block';
+                document.getElementById('inv-report-print-controls').style.display = 'flex';
             });
 
             // Target Printing Logic
@@ -906,6 +958,145 @@ function initInventoryLogic() {
             document.getElementById('btn-inv-print-summary').onclick = () => executeInvReportPrint('summary');
             document.getElementById('btn-inv-print-log').onclick = () => executeInvReportPrint('log');
             document.getElementById('btn-inv-print-full').onclick = () => executeInvReportPrint('full');
+
+            // --- QR EXPORT LOGIC ---
+            const exportBtn = document.getElementById('inv-export-qr-btn');
+            const exportContainer = document.getElementById('inv-qr-export-container');
+            const exportCanvas = document.getElementById('inv-qr-canvas');
+            const exportStatus = document.getElementById('inv-qr-export-status');
+            const exportStop = document.getElementById('inv-qr-export-stop');
+
+            exportBtn.addEventListener('click', () => {
+                if (typeof QRCode === 'undefined') { alert("ERROR: QRCode generation library missing."); return; }
+                
+                const chunks = StateManager.generateQRChunks('inventory');
+                if (chunks.length === 0) return NotificationSystem.show("No data to export", "error");
+
+                exportBtn.style.display = 'none';
+                exportContainer.style.display = 'flex';
+                
+                let currentFrame = 0;
+                
+                const renderFrame = () => {
+                    exportCanvas.innerHTML = ''; 
+                    new QRCode(exportCanvas, {
+                        text: chunks[currentFrame],
+                        width: 200, height: 200,
+                        colorDark: "#000000", colorLight: "#ffffff",
+                        correctLevel: QRCode.CorrectLevel.L
+                    });
+                    exportStatus.innerText = `Transmitting: Frame ${currentFrame + 1} of ${chunks.length}`;
+                    currentFrame++;
+                    if (currentFrame >= chunks.length) currentFrame = 0; 
+                };
+
+                renderFrame();
+                qrExportInterval = setInterval(renderFrame, 800); 
+            });
+
+            exportStop.addEventListener('click', () => {
+                if (qrExportInterval) clearInterval(qrExportInterval);
+                exportContainer.style.display = 'none';
+                exportBtn.style.display = 'block';
+            });
+
+            // --- QR IMPORT LOGIC ---
+            const importBtn = document.getElementById('inv-import-qr-btn');
+            const importContainer = document.getElementById('inv-qr-import-container');
+            const importStatus = document.getElementById('inv-qr-import-status');
+            const importProgress = document.getElementById('inv-qr-import-progress');
+            const importStop = document.getElementById('inv-qr-import-stop');
+
+            const stopImport = () => {
+                if (html5QrCode) {
+                    html5QrCode.stop().then(() => {
+                        html5QrCode.clear();
+                        html5QrCode = null;
+                    }).catch(e => console.log(e));
+                }
+                importContainer.style.display = 'none';
+                importBtn.style.display = 'block';
+            };
+
+            importStop.addEventListener('click', stopImport);
+
+            importBtn.addEventListener('click', () => {
+                if (typeof Html5Qrcode === 'undefined') { alert("ERROR: Html5Qrcode scanner library missing."); return; }
+                
+                importBtn.style.display = 'none';
+                importContainer.style.display = 'flex';
+                importProgress.value = 0;
+                importStatus.innerText = "Initializing camera...";
+
+                setTimeout(() => {
+                    html5QrCode = new Html5Qrcode("inv-qr-reader");
+                    let localBuffer = [];
+                    let totalExpected = 0;
+                    let scannedIndices = new Set();
+
+                    html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, (decodedText) => {
+                        if (decodedText.startsWith("PMH|inventory|")) {
+                            const parts = decodedText.split('|');
+                            if (parts.length >= 5) {
+                                const idx = parseInt(parts[2]);
+                                totalExpected = parseInt(parts[3]);
+                                const data = parts.slice(4).join('|');
+
+                                importProgress.max = totalExpected;
+
+                                if (!scannedIndices.has(idx)) {
+                                    scannedIndices.add(idx);
+                                    localBuffer[idx - 1] = data; 
+                                    
+                                    importProgress.value = scannedIndices.size;
+                                    const pct = Math.round((scannedIndices.size / totalExpected) * 100);
+                                    importStatus.innerText = `Captured: ${pct}%`;
+                                }
+
+                                if (scannedIndices.size === totalExpected) {
+                                    html5QrCode.stop().then(() => {
+                                        html5QrCode.clear();
+                                        html5QrCode = null;
+                                        importContainer.style.display = 'none';
+                                        importBtn.style.display = 'block';
+
+                                        const assembledString = localBuffer.join('');
+                                        localBuffer = [];
+                                        scannedIndices.clear();
+
+                                        DialogSystem.confirm(`Merge Inventory Data?`, `All data chunks captured successfully. Click OK to safely MERGE this data into your device.`).then(proceed => {
+                                            if (proceed) {
+                                                try {
+                                                    const importedData = JSON.parse(assembledString);
+                                                    if (!importedData.items || !importedData.transactions || !importedData.categories) throw new Error("Invalid inventory sync format.");
+
+                                                    importedData.categories.forEach(cat => { if (!invData.categories.includes(cat)) invData.categories.push(cat); });
+                                                    importedData.items.forEach(importedItem => {
+                                                        const existingIndex = invData.items.findIndex(i => i.sku === importedItem.sku);
+                                                        if (existingIndex > -1) invData.items[existingIndex] = { ...invData.items[existingIndex], ...importedItem };
+                                                        else invData.items.push(importedItem);
+                                                    });
+                                                    importedData.transactions.forEach(importedTx => {
+                                                        if (!invData.transactions.some(t => t.id === importedTx.id)) invData.transactions.push(importedTx);
+                                                    });
+                                                    safeSave();
+                                                    NotificationSystem.show('Inventory Data Merged Successfully', 'success');
+                                                    renderInvView('reports'); 
+                                                } catch (err) { 
+                                                    NotificationSystem.show('Import Failed: Invalid Data', 'error'); 
+                                                }
+                                            }
+                                        });
+                                    });
+                                }
+                            }
+                        }
+                    }, undefined).catch((err) => {
+                        alert("Camera access denied or unavailable.");
+                        stopImport();
+                    });
+                }, 100);
+            });
 
             document.getElementById('export-inv-json-btn').addEventListener('click', () => {
                 const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(invData, null, 2));

@@ -11,7 +11,6 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <link rel="apple-touch-icon" href="assets/icon-192.png">
 
-    <!-- Hardwired Local Libraries (Offline Compatible) -->
     <script src="js/papaparse.min.js"></script>
     <script src="js/html5-qrcode.min.js"></script>
     <script src="js/exceljs.min.js"></script>
@@ -42,8 +41,8 @@
         </div>
 
         <div class="header-center">
-            <div id="global-search-container">
-                <input type="text" id="global-search" placeholder="Search active app...">
+            <div id="global-search-container" style="display: flex; align-items: center; width: 100%;">
+                <input type="text" id="global-search" placeholder="Search active app..." style="flex-grow: 1;">
             </div>
         </div>
 
@@ -98,14 +97,15 @@
 
     <dialog id="settings-modal">
         <div class="modal-header">
-            <h3>System Settings & Themes</h3>
+            <h3>System Settings</h3>
             <button id="close-settings-btn" class="icon-btn">❌</button>
         </div>
         <div class="modal-body">
             
             <div style="display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid var(--accent-primary); padding-bottom: 10px;">
-                <button class="settings-tab btn-primary" data-target="theme" style="flex: 1;">🎨 Theme Manager</button>
-                <button class="settings-tab btn-outline" data-target="sync" style="flex: 1;">🔄 Data & Sync</button>
+                <button class="settings-tab btn-primary" data-target="theme" style="flex: 1;">🎨 Themes</button>
+                <button class="settings-tab btn-outline" data-target="sync" style="flex: 1;">🔄 Data Sync</button>
+                <button class="settings-tab btn-outline" data-target="share" style="flex: 1;">📱 Share App</button>
             </div>
 
             <section id="settings-view-theme" class="settings-section">
@@ -121,31 +121,29 @@
                     </div>
                     
                     <input type="hidden" id="theme-edit-id">
-                    <input type="text" id="theme-edit-name" class="app-input" placeholder="Theme Name (e.g., Midnight Forest)">
+                    <input type="text" id="theme-edit-name" class="app-input" placeholder="Theme Name">
 
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; font-size: 0.85rem; font-weight: bold;">
                         <div style="display: flex; justify-content: space-between; align-items: center;"><label>Background</label><input type="color" id="theme-edit-bg"></div>
-                        <div style="display: flex; justify-content: space-between; align-items: center;"><label>Surface (Cards)</label><input type="color" id="theme-edit-surface"></div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;"><label>Surface</label><input type="color" id="theme-edit-surface"></div>
                         <div style="display: flex; justify-content: space-between; align-items: center;"><label>Text Main</label><input type="color" id="theme-edit-text-main"></div>
                         <div style="display: flex; justify-content: space-between; align-items: center;"><label>Text Muted</label><input type="color" id="theme-edit-text-muted"></div>
-                        <div style="display: flex; justify-content: space-between; align-items: center;"><label>Primary Button</label><input type="color" id="theme-edit-accent"></div>
-                        <div style="display: flex; justify-content: space-between; align-items: center;"><label>Button Hover</label><input type="color" id="theme-edit-accent-hover"></div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;"><label>Accent</label><input type="color" id="theme-edit-accent"></div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;"><label>Hover</label><input type="color" id="theme-edit-accent-hover"></div>
                         <div style="display: flex; justify-content: space-between; align-items: center;"><label>Border</label><input type="color" id="theme-edit-border"></div>
-                        <div style="display: flex; justify-content: space-between; align-items: center;"><label>Danger/Error</label><input type="color" id="theme-edit-danger"></div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;"><label>Danger</label><input type="color" id="theme-edit-danger"></div>
                     </div>
 
                     <div style="display: flex; gap: 10px; margin-top: 15px;">
-                        <button id="save-theme-btn" class="btn-primary" style="flex: 2;">💾 Save Changes</button>
+                        <button id="save-theme-btn" class="btn-primary" style="flex: 2;">💾 Save</button>
                         <button id="delete-theme-btn" class="btn-danger" style="flex: 1;">🗑️ Delete</button>
                     </div>
                 </div>
             </section>
             
             <section id="settings-view-sync" class="settings-section" style="display: none;">
-                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 10px;">Export, replace, or merge data. Select a specific app or perform a full global sync.</p>
-                
                 <select id="sync-target-select" class="app-select" style="margin-bottom: 15px;">
-                    <option value="global">Global Master (All Apps & Settings)</option>
+                    <option value="global">Global Master (All Apps)</option>
                     <option value="themes">Themes</option>
                     <option value="parkInfo">Park Info & Resources</option>
                     <option value="projects">Projects & Tasks</option>
@@ -157,27 +155,61 @@
                 </select>
                 
                 <div style="display: flex; flex-direction: column; gap: 10px;">
-                    <!-- New QR Engine Controls -->
-                    <button id="btn-export-qr" class="btn-primary" style="width: 100%; font-size: 1.1rem;">📲 Generate QR Sync Stream</button>
-                    <div id="qr-export-container" style="display: none; justify-content: center; padding: 15px; background: white; border-radius: var(--radius-md); border: 2px solid var(--accent-primary);"></div>
-                    
-                    <button id="btn-import-scan" class="btn-primary" style="width: 100%; font-size: 1.1rem;">📷 Scan QR to Import</button>
-                    <div id="qr-reader" style="display: none; width: 100%; border-radius: var(--radius-md); overflow: hidden; border: 2px solid var(--accent-primary);"></div>
+                    <button id="btn-open-export-modal" class="btn-primary" style="width: 100%; font-size: 1.1rem; padding: 15px;">📲 Generate QR Sync Stream</button>
+                    <button id="btn-open-import-modal" class="btn-primary" style="width: 100%; font-size: 1.1rem; padding: 15px;">📷 Scan QR to Import</button>
                     
                     <hr style="margin: 10px 0;">
                     
-                    <!-- Original File Controls -->
-                    <button id="btn-export-data" class="btn-outline" style="width: 100%;">⬇️ Export Selected Data (.json)</button>
-                    
+                    <button id="btn-export-data" class="btn-outline" style="width: 100%;">💾 Backup to File (.json)</button>
                     <div style="display: flex; gap: 10px;">
                         <input type="file" id="file-import-merge" style="display: none;">
-                        <button id="btn-import-merge" class="btn-outline" style="flex: 1; border-color: var(--accent-primary); color: var(--accent-primary);">🔄 Merge Import</button>
-                        
+                        <button id="btn-import-merge" class="btn-outline" style="flex: 1;">🔄 File Merge</button>
                         <input type="file" id="file-import-replace" style="display: none;">
-                        <button id="btn-import-replace" class="btn-danger" style="flex: 1;">⚠️ Replace Import</button>
+                        <button id="btn-import-replace" class="btn-danger" style="flex: 1;">⚠️ File Replace</button>
                     </div>
                 </div>
             </section>
+
+            <section id="settings-view-share" class="settings-section" style="display: none; text-align: center;">
+                <p style="margin-bottom: 15px; color: var(--text-secondary);">Scan this code with another device's camera to immediately open and install the Park Management Hub.</p>
+                <button id="btn-generate-share" class="btn-primary" style="width: 100%;">Generate Share Link</button>
+                <div id="qr-share-container" style="display: none; justify-content: center; align-items: center; margin-top: 20px; padding: 15px; background: white; border-radius: var(--radius-md); border: 2px solid var(--border-color); min-height: 230px;"></div>
+            </section>
+        </div>
+    </dialog>
+
+    <dialog id="qr-export-modal" style="width: 90%; max-width: 400px; text-align: center; padding: 0;">
+        <div class="modal-header">
+            <h3>QR Data Stream</h3>
+            <button id="close-qr-export-btn" class="icon-btn">❌</button>
+        </div>
+        <div class="modal-body" style="display: flex; flex-direction: column; align-items: center; padding: 20px;">
+            <div id="qr-export-canvas" style="background: white; padding: 15px; border-radius: var(--radius-md); border: 2px solid var(--accent-primary); width: 230px; height: 230px; display: flex; justify-content: center; align-items: center;"></div>
+            
+            <div style="margin-top: 20px; width: 100%;">
+                <h4 id="qr-export-status" style="font-size: 1.2rem; margin-bottom: 5px;">Preparing Stream...</h4>
+                <progress id="qr-export-progress" value="0" max="100" style="width: 100%; height: 10px; border-radius: 5px;"></progress>
+                <p style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 10px;">Keep the receiving device's camera pointed steadily at this box.</p>
+            </div>
+        </div>
+    </dialog>
+
+    <dialog id="qr-import-modal" style="width: 90%; max-width: 400px; text-align: center; padding: 0;">
+        <div class="modal-header">
+            <h3>Scanner Link</h3>
+            <button id="close-qr-import-btn" class="icon-btn">❌</button>
+        </div>
+        <div class="modal-body" style="display: flex; flex-direction: column; align-items: center; padding: 20px;">
+            <div id="qr-reader-canvas" style="width: 100%; min-height: 250px; background: #000; border-radius: var(--radius-md); overflow: hidden; border: 2px solid var(--accent-primary);"></div>
+            
+            <div style="width: 100%; margin-top: 20px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                    <span style="font-weight: bold; font-size: 1rem;">Data Captured</span>
+                    <span id="qr-import-status" style="font-weight: bold; font-size: 1rem; color: var(--accent-primary);">0%</span>
+                </div>
+                <progress id="qr-import-progress" value="0" max="100" style="width: 100%; height: 15px; border-radius: 5px;"></progress>
+                <p id="qr-import-blocks-text" style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 10px;">Waiting for QR stream...</p>
+            </div>
         </div>
     </dialog>
 
@@ -204,22 +236,16 @@
 
     <script src="apps/park-info/template.js"></script>
     <script src="apps/park-info/app.js"></script>
-
     <script src="apps/inventory/template.js"></script>
     <script src="apps/inventory/app.js"></script>
-    
     <script src="apps/fleet/template.js"></script>
     <script src="apps/fleet/app.js"></script>
-    
     <script src="apps/winterization/template.js"></script>
     <script src="apps/winterization/app.js"></script>
-    
     <script src="apps/first-aid/template.js"></script>
     <script src="apps/first-aid/app.js"></script>
-    
     <script src="apps/parts/template.js"></script>
     <script src="apps/parts/app.js"></script>
-
     <script src="apps/projects/template.js"></script>
     <script src="apps/projects/app.js"></script>
 
@@ -227,11 +253,8 @@
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/Park-Hub/sw.js', { scope: '/Park-Hub/' })
-                .then(reg => {
-                    console.log('Service Worker Registered! Offline mode active.');
-                    reg.update();
-                })
-                .catch(err => console.error('Service Worker Registration Failed:', err));
+                .then(reg => reg.update())
+                .catch(err => console.error('SW Failed:', err));
             });
         }
     </script>

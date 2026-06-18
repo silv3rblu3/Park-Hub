@@ -1,7 +1,6 @@
 // sw.js
 
-// Bumped cache string to v18 for local library lockdown
-const CACHE_NAME = 'omnihub-v18'; 
+const CACHE_NAME = 'omnihub-v19'; // Bumped version
 
 const ASSETS_TO_CACHE = [
     '/Park-Hub/',
@@ -26,11 +25,8 @@ const ASSETS_TO_CACHE = [
     '/Park-Hub/apps/parts/app.js',
     '/Park-Hub/apps/projects/template.js',
     '/Park-Hub/apps/projects/app.js',
-    
     '/Park-Hub/assets/icon-192.png',
     '/Park-Hub/assets/icon-512.png',
-
-    // Hardwired Local Libraries (Replaced external internet links)
     '/Park-Hub/js/papaparse.min.js',
     '/Park-Hub/js/html5-qrcode.min.js',
     '/Park-Hub/js/exceljs.min.js',
@@ -39,23 +35,12 @@ const ASSETS_TO_CACHE = [
 ];
 
 self.addEventListener('install', (event) => {
-    self.skipWaiting(); 
+    self.skipWaiting();
     event.waitUntil(
-        caches.open(CACHE_NAME).then(async (cache) => {
-            for (let i = 0; i < ASSETS_TO_CACHE.length; i++) {
-                const asset = ASSETS_TO_CACHE[i];
-                try {
-                    const response = await fetch(asset);
-                    if (!response.ok) {
-                        console.error(`🚨 SW Cache Load Error: Resource missing -> ${asset} (Status: ${response.status})`);
-                    } else {
-                        await cache.put(asset, response.clone());
-                    }
-                } catch (e) {
-                    console.error(`🚨 SW Cache Load Error: Network execution blocked on -> ${asset}`, e);
-                }
-            }
-            console.log('SW: Caching complete.');
+        caches.open(CACHE_NAME).then((cache) => {
+            return cache.addAll(ASSETS_TO_CACHE).catch(err => {
+                console.warn("SW Install: Some assets failed to cache initially, but proceeding.", err);
+            });
         })
     );
 });
@@ -70,24 +55,37 @@ self.addEventListener('activate', (event) => {
                     }
                 })
             );
-        }).then(() => {
-            return self.clients.claim(); 
-        })
+        }).then(() => self.clients.claim())
     );
 });
 
 self.addEventListener('fetch', (event) => {
+    // Only intercept basic GET requests
+    if (event.request.method !== 'GET') return;
+
+    // Stale-While-Revalidate Strategy
     event.respondWith(
         caches.match(event.request).then((cachedResponse) => {
-            if (cachedResponse) {
-                return cachedResponse; 
-            }
             
-            return fetch(event.request).catch(() => {
+            // Fire off a network request to update the cache in the background
+            const fetchPromise = fetch(event.request).then((networkResponse) => {
+                // Ensure we only cache valid, complete responses (not opaque errors)
+                if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+                    const responseToCache = networkResponse.clone();
+                    caches.open(CACHE_NAME).then((cache) => {
+                        cache.put(event.request, responseToCache);
+                    });
+                }
+                return networkResponse;
+            }).catch(() => {
+                // Offline fallback route: if completely isolated, force a hard redirect to the app shell
                 if (event.request.mode === 'navigate') {
                     return caches.match('/Park-Hub/index.html');
                 }
             });
+
+            // Immediately return the ultra-fast cached response if it exists, otherwise wait for the network
+            return cachedResponse || fetchPromise;
         })
     );
 });
