@@ -3,10 +3,9 @@
 function initProjectsLogic() {
     let projData = StateManager.getAppData('projects');
     
-    if (!projData.tasks) {
-        projData = { tasks: [] };
-        StateManager.setAppData('projects', projData);
-    }
+    // Validate schema
+    if (!projData.tasks) projData.tasks = [];
+    if (!projData.recurring) projData.recurring = []; // Holds the master repeating blueprints
     
     const safeSave = () => { StateManager.setAppData('projects', projData); };
 
@@ -41,10 +40,65 @@ function initProjectsLogic() {
         }
     }
 
+    // --- TIME-CHECK ENGINE: Processes repeating tasks on view load ---
+    function processRecurringTasks() {
+        if (!projData.recurring) projData.recurring = [];
+        let needsSave = false;
+        
+        const now = new Date();
+        const currentMonth = now.getMonth(); // 0 = Jan, 11 = Dec
+        
+        let currentSeason = 'Year-Round';
+        if (currentMonth >= 2 && currentMonth <= 4) currentSeason = 'Spring'; // March - May
+        else if (currentMonth >= 5 && currentMonth <= 7) currentSeason = 'Summer'; // June - Aug
+        else if (currentMonth >= 8 && currentMonth <= 10) currentSeason = 'Fall'; // Sept - Nov
+        else currentSeason = 'Winter'; // Dec - Feb
+
+        projData.recurring.forEach(bp => {
+            const nextSpawn = new Date(bp.nextSpawn);
+            
+            // Has the interval passed?
+            if (now >= nextSpawn) {
+                // 1. Advance the clock for the NEXT cycle regardless of season
+                if (bp.interval === 'Weekly') nextSpawn.setDate(nextSpawn.getDate() + 7);
+                else if (bp.interval === 'Monthly') nextSpawn.setMonth(nextSpawn.getMonth() + 1);
+                bp.nextSpawn = nextSpawn.toISOString();
+                needsSave = true;
+
+                // 2. Are we in the correct season?
+                if (bp.season === 'Year-Round' || bp.season === currentSeason) {
+                    
+                    // 3. Delete old active instance if the user missed it
+                    const existingIdx = projData.tasks.findIndex(t => t.status === 'Active' && t.blueprintId === bp.id);
+                    if (existingIdx > -1) {
+                        projData.tasks.splice(existingIdx, 1);
+                    }
+                    
+                    // 4. Spawn the new active instance
+                    projData.tasks.push({
+                        id: 'task_' + Date.now() + Math.random().toString(36).substr(2, 9),
+                        blueprintId: bp.id,
+                        title: bp.title,
+                        description: bp.description,
+                        priority: bp.priority,
+                        status: 'Active',
+                        dateCreated: now.toISOString(),
+                        dateCompleted: null
+                    });
+                }
+            }
+        });
+        
+        if (needsSave) safeSave();
+    }
+
     function renderProjView(viewName) {
         stage.innerHTML = '';
         
         if (viewName === 'active') {
+            // Trigger Time-Check Engine before building the visual list
+            processRecurringTasks();
+
             let activeTasks = projData.tasks.filter(t => t.status !== 'Completed');
             
             // Sort: High Priority first, then oldest created
@@ -63,13 +117,25 @@ function initProjectsLogic() {
             } else {
                 activeTasks.forEach(task => {
                     const createdFmt = new Date(task.dateCreated).toLocaleDateString();
+                    
+                    // Look up if it's tied to a repeating blueprint
+                    let repeatMeta = '';
+                    let titleIcon = '';
+                    if (task.blueprintId) {
+                        const bp = projData.recurring.find(r => r.id === task.blueprintId);
+                        if (bp) {
+                            titleIcon = `<span style="font-size: 0.9rem;" title="Repeating Task">🔁</span>`;
+                            repeatMeta = `| <strong>Repeats:</strong> ${bp.interval} (${bp.season})`;
+                        }
+                    }
+
                     html += `
                         <div class="task-card task-priority-${task.priority}">
                             <div style="flex: 1; min-width: 250px;">
-                                <h4 class="task-title">${task.title}</h4>
+                                <h4 class="task-title">${task.title} ${titleIcon}</h4>
                                 <div class="task-desc">${task.description || 'No description provided.'}</div>
                                 <div class="task-meta">
-                                    <strong>Priority:</strong> ${task.priority} | <strong>Created:</strong> ${createdFmt}
+                                    <strong>Priority:</strong> ${task.priority} | <strong>Created:</strong> ${createdFmt} ${repeatMeta}
                                 </div>
                             </div>
                             <div class="task-actions">
@@ -123,9 +189,11 @@ function initProjectsLogic() {
                     const createdFmt = new Date(task.dateCreated).toLocaleDateString();
                     const compFmt = new Date(task.dateCompleted).toLocaleDateString();
                     const timeTaken = calculateTimeTaken(task.dateCreated, task.dateCompleted);
+                    
+                    const titlePrefix = task.blueprintId ? '🔁 ' : '';
 
                     html += `<tr>
-                                <td><strong>${task.title}</strong></td>
+                                <td><strong>${titlePrefix}${task.title}</strong></td>
                                 <td><div style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${task.description}">${task.description || '--'}</div></td>
                                 <td>${task.priority}</td>
                                 <td>${createdFmt}</td>
@@ -150,7 +218,7 @@ function initProjectsLogic() {
             document.getElementById('proj-print-logs-btn').addEventListener('click', () => {
                 const printStage = document.getElementById('proj-print-stage');
                 let tableHtml = document.getElementById('proj-log-table').outerHTML;
-                // Strip the actions column
+                
                 tableHtml = tableHtml.replace(/<th style="text-align: center;">Action<\/th>/g, '');
                 tableHtml = tableHtml.replace(/<td style="text-align: center;">.*?<\/td>/g, '');
                 
@@ -204,7 +272,7 @@ function initProjectsLogic() {
                 </div>
 
                 <h4 style="margin-top: 20px; margin-bottom: 10px;">Full Module Sync (JSON)</h4>
-                <p style="color: var(--text-secondary); margin-bottom: 10px; font-size: 0.85rem;">Export or merge complete project states to safely sync across devices.</p>
+                <p style="color: var(--text-secondary); margin-bottom: 10px; font-size: 0.85rem;">Export or merge complete project states (including repeating logic) to safely sync across devices.</p>
                 
                 <button id="export-proj-json-btn" class="btn-primary" style="width: 100%; margin-bottom: 10px;">⬇️ Export Project Sync File (.json)</button>
                 
@@ -240,12 +308,17 @@ function initProjectsLogic() {
 
                                 importedData.tasks.forEach(impTask => {
                                     const existingIndex = projData.tasks.findIndex(t => t.id === impTask.id);
-                                    if (existingIndex > -1) {
-                                        projData.tasks[existingIndex] = { ...projData.tasks[existingIndex], ...impTask };
-                                    } else {
-                                        projData.tasks.push(impTask);
-                                    }
+                                    if (existingIndex > -1) projData.tasks[existingIndex] = { ...projData.tasks[existingIndex], ...impTask };
+                                    else projData.tasks.push(impTask);
                                 });
+
+                                if (importedData.recurring) {
+                                    importedData.recurring.forEach(impBp => {
+                                        const existingIndex = projData.recurring.findIndex(r => r.id === impBp.id);
+                                        if (existingIndex > -1) projData.recurring[existingIndex] = { ...projData.recurring[existingIndex], ...impBp };
+                                        else projData.recurring.push(impBp);
+                                    });
+                                }
 
                                 safeSave();
                                 NotificationSystem.show('Project Data Merged Successfully', 'success');
@@ -294,17 +367,15 @@ function initProjectsLogic() {
                                 priority: row['Priority'] || 'Normal',
                                 status: row['Status'] || 'Active',
                                 dateCreated: row['Date Created'] || new Date().toISOString(),
-                                dateCompleted: row['Date Completed'] || null
+                                dateCompleted: row['Date Completed'] || null,
+                                blueprintId: null // Strip blueprint IDs on CSV imports to prevent sync errors
                             };
                         });
                         
                         newTasks.forEach(nt => {
                             const existingIndex = projData.tasks.findIndex(t => t.id === nt.id);
-                            if (existingIndex > -1) {
-                                projData.tasks[existingIndex] = { ...projData.tasks[existingIndex], ...nt };
-                            } else {
-                                projData.tasks.push(nt);
-                            }
+                            if (existingIndex > -1) projData.tasks[existingIndex] = { ...projData.tasks[existingIndex], ...nt };
+                            else projData.tasks.push(nt);
                         });
                         
                         safeSave();
@@ -316,17 +387,26 @@ function initProjectsLogic() {
         }
     }
 
-    // --- Modal Logic ---
+    // --- FORM MODAL UI TOGGLES ---
+    document.getElementById('task-is-recurring').addEventListener('change', (e) => {
+        const opts = document.getElementById('task-recurring-options');
+        if (e.target.checked) opts.style.display = 'block';
+        else opts.style.display = 'none';
+    });
+
     const taskModal = document.getElementById('project-modal');
-    
     document.getElementById('add-project-btn').addEventListener('click', () => openTaskEditor(null));
     document.getElementById('close-project-modal').addEventListener('click', () => taskModal.close());
 
     function openTaskEditor(taskId) {
         const deleteBtn = document.getElementById('task-delete-btn');
+        const recurCheckbox = document.getElementById('task-is-recurring');
+        const recurOptions = document.getElementById('task-recurring-options');
+
         if (taskId) {
             const task = projData.tasks.find(t => t.id === taskId);
             if (!task) return;
+            
             document.getElementById('project-modal-title').innerText = "Edit Task";
             document.getElementById('task-id').value = task.id;
             document.getElementById('task-date-created').value = task.dateCreated;
@@ -334,40 +414,113 @@ function initProjectsLogic() {
             document.getElementById('task-desc').value = task.description || '';
             document.getElementById('task-priority').value = task.priority;
             
-            deleteBtn.classList.remove('hidden');
+            if (task.blueprintId) {
+                const bp = projData.recurring.find(r => r.id === task.blueprintId);
+                if (bp) {
+                    document.getElementById('blueprint-id').value = bp.id;
+                    recurCheckbox.checked = true;
+                    recurOptions.style.display = 'block';
+                    document.getElementById('task-interval').value = bp.interval;
+                    document.getElementById('task-season').value = bp.season;
+                }
+            } else {
+                document.getElementById('blueprint-id').value = '';
+                recurCheckbox.checked = false;
+                recurOptions.style.display = 'none';
+                document.getElementById('task-interval').value = 'Weekly';
+                document.getElementById('task-season').value = 'Year-Round';
+            }
+            
+            deleteBtn.style.display = 'block';
         } else {
             document.getElementById('project-modal-title').innerText = "New Task";
             document.getElementById('task-id').value = 'task_' + Date.now() + Math.random().toString(36).substr(2, 9);
+            document.getElementById('blueprint-id').value = '';
             document.getElementById('task-date-created').value = new Date().toISOString();
             document.getElementById('task-title').value = '';
             document.getElementById('task-desc').value = '';
             document.getElementById('task-priority').value = 'Normal';
             
-            deleteBtn.classList.add('hidden');
+            recurCheckbox.checked = false;
+            recurOptions.style.display = 'none';
+            document.getElementById('task-interval').value = 'Weekly';
+            document.getElementById('task-season').value = 'Year-Round';
+
+            deleteBtn.style.display = 'none';
         }
         taskModal.showModal();
     }
 
+    // --- FORM SUBMISSION & RECURRING LOGIC ---
     document.getElementById('project-form').addEventListener('submit', (e) => {
         e.preventDefault();
         const id = document.getElementById('task-id').value;
-        const newTask = {
-            id: id,
-            title: document.getElementById('task-title').value.trim(),
-            description: document.getElementById('task-desc').value.trim(),
-            priority: document.getElementById('task-priority').value,
-            status: 'Active',
-            dateCreated: document.getElementById('task-date-created').value,
-            dateCompleted: null
-        };
+        const isRec = document.getElementById('task-is-recurring').checked;
+        let bpId = document.getElementById('blueprint-id').value;
 
+        const title = document.getElementById('task-title').value.trim();
+        const desc = document.getElementById('task-desc').value.trim();
+        const priority = document.getElementById('task-priority').value;
+
+        if (isRec) {
+            const interval = document.getElementById('task-interval').value;
+            const season = document.getElementById('task-season').value;
+            
+            if (!projData.recurring) projData.recurring = [];
+            
+            if (bpId) {
+                // Update existing blueprint
+                const bpIdx = projData.recurring.findIndex(r => r.id === bpId);
+                if (bpIdx > -1) {
+                    projData.recurring[bpIdx].title = title;
+                    projData.recurring[bpIdx].description = desc;
+                    projData.recurring[bpIdx].priority = priority;
+                    projData.recurring[bpIdx].interval = interval;
+                    projData.recurring[bpIdx].season = season;
+                }
+            } else {
+                // Create new blueprint
+                bpId = 'bp_' + Date.now();
+                const next = new Date();
+                if (interval === 'Weekly') next.setDate(next.getDate() + 7);
+                else next.setMonth(next.getMonth() + 1);
+
+                projData.recurring.push({
+                    id: bpId,
+                    title: title,
+                    description: desc,
+                    priority: priority,
+                    interval: interval,
+                    season: season,
+                    nextSpawn: next.toISOString() // Won't spawn again until the interval passes
+                });
+            }
+        } else {
+            // Un-checked. If it used to be a blueprint, remove it so it stops repeating
+            if (bpId && projData.recurring) {
+                projData.recurring = projData.recurring.filter(r => r.id !== bpId);
+            }
+            bpId = null;
+        }
+
+        // Build/Update the Active Task
         const existingIdx = projData.tasks.findIndex(t => t.id === id);
         if (existingIdx > -1) {
-            newTask.status = projData.tasks[existingIdx].status;
-            newTask.dateCompleted = projData.tasks[existingIdx].dateCompleted;
-            projData.tasks[existingIdx] = newTask;
+            projData.tasks[existingIdx].title = title;
+            projData.tasks[existingIdx].description = desc;
+            projData.tasks[existingIdx].priority = priority;
+            projData.tasks[existingIdx].blueprintId = bpId;
         } else {
-            projData.tasks.push(newTask);
+            projData.tasks.push({
+                id: id,
+                blueprintId: bpId,
+                title: title,
+                description: desc,
+                priority: priority,
+                status: 'Active',
+                dateCreated: document.getElementById('task-date-created').value,
+                dateCompleted: null
+            });
         }
 
         safeSave();
@@ -376,11 +529,20 @@ function initProjectsLogic() {
         renderProjView('active');
     });
 
+    // --- DELETION LOGIC ---
     document.getElementById('task-delete-btn').addEventListener('click', async () => {
         const id = document.getElementById('task-id').value;
-        const confirmed = await DialogSystem.confirm("Delete Task", "Are you sure you want to permanently delete this task?");
+        const bpId = document.getElementById('blueprint-id').value;
+        
+        const msg = bpId ? "Delete this repeating task? This will permanently cancel all future repetitions." : "Are you sure you want to permanently delete this task?";
+        const confirmed = await DialogSystem.confirm("Delete Task", msg);
+        
         if (confirmed) {
             projData.tasks = projData.tasks.filter(t => t.id !== id);
+            if (bpId && projData.recurring) {
+                projData.recurring = projData.recurring.filter(r => r.id !== bpId);
+            }
+            
             safeSave();
             taskModal.close();
             renderProjView('active');

@@ -1,7 +1,7 @@
 // sw.js
 
-// Bumped cache string to v17
-const CACHE_NAME = 'omnihub-v17'; 
+// Bumped cache string to v18 for local library lockdown
+const CACHE_NAME = 'omnihub-v18'; 
 
 const ASSETS_TO_CACHE = [
     '/Park-Hub/',
@@ -27,23 +27,21 @@ const ASSETS_TO_CACHE = [
     '/Park-Hub/apps/projects/template.js',
     '/Park-Hub/apps/projects/app.js',
     
-    // Explicit static image declarations
     '/Park-Hub/assets/icon-192.png',
     '/Park-Hub/assets/icon-512.png',
 
-    // External scripts
-    'https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js',
-    'https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js',
-    'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js',
-    'https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js',
-    'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js'
+    // Hardwired Local Libraries (Replaced external internet links)
+    '/Park-Hub/js/papaparse.min.js',
+    '/Park-Hub/js/html5-qrcode.min.js',
+    '/Park-Hub/js/exceljs.min.js',
+    '/Park-Hub/js/FileSaver.min.js',
+    '/Park-Hub/js/qrcode.min.js'
 ];
 
 self.addEventListener('install', (event) => {
     self.skipWaiting(); 
     event.waitUntil(
         caches.open(CACHE_NAME).then(async (cache) => {
-            console.log('SW: Running core asset allocation loops...');
             for (let i = 0; i < ASSETS_TO_CACHE.length; i++) {
                 const asset = ASSETS_TO_CACHE[i];
                 try {

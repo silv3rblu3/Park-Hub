@@ -122,7 +122,113 @@ const CoreSystem = {
             NotificationSystem.show("Theme Deleted", "success");
         });
 
+        // ---------------------------------------------------------
         // 4. Advanced Data Sync & Routing
+        // ---------------------------------------------------------
+        
+        let qrExportInterval = null;
+        
+        // Export: Streaming QR Codes
+        document.getElementById('btn-export-qr').addEventListener('click', (e) => {
+            const target = document.getElementById('sync-target-select').value;
+            const btn = e.target;
+            const container = document.getElementById('qr-export-container');
+
+            if (qrExportInterval) {
+                clearInterval(qrExportInterval);
+                qrExportInterval = null;
+                container.style.display = 'none';
+                container.innerHTML = '';
+                btn.innerText = '📲 Generate QR Sync Stream';
+                return;
+            }
+
+            const chunks = StateManager.generateQRChunks(target);
+            if (chunks.length === 0) return NotificationSystem.show("No data to export", "error");
+
+            container.style.display = 'flex';
+            let currentFrame = 0;
+
+            const renderFrame = () => {
+                container.innerHTML = '';
+                new QRCode(container, {
+                    text: chunks[currentFrame],
+                    width: 250, height: 250,
+                    colorDark: "#000000", colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.L
+                });
+                btn.innerText = `🛑 Streaming ${currentFrame + 1}/${chunks.length} (Click to Stop)`;
+                currentFrame++;
+                if (currentFrame >= chunks.length) currentFrame = 0;
+            };
+
+            renderFrame();
+            qrExportInterval = setInterval(renderFrame, 800); 
+        });
+
+        // Import: QR Camera Scanner
+        let html5QrCode = null;
+        document.getElementById('btn-import-scan').addEventListener('click', async (e) => {
+            const btn = e.target;
+            const readerDiv = document.getElementById('qr-reader');
+
+            if (html5QrCode) {
+                await html5QrCode.stop();
+                html5QrCode.clear();
+                html5QrCode = null;
+                readerDiv.style.display = 'none';
+                btn.innerText = '📷 Scan QR to Import';
+                StateManager.qrBuffer = [];
+                return;
+            }
+
+            readerDiv.style.display = 'block';
+            btn.innerText = '🛑 Stop Scanner';
+            html5QrCode = new Html5Qrcode("qr-reader");
+
+            StateManager.qrBuffer = [];
+            let totalExpected = 0;
+            let targetApp = "";
+            let scannedIndices = new Set();
+
+            html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, (decodedText) => {
+                if (decodedText.startsWith("PMH|")) {
+                    const parts = decodedText.split('|');
+                    if (parts.length >= 5) {
+                        targetApp = parts[1];
+                        const idx = parseInt(parts[2]);
+                        totalExpected = parseInt(parts[3]);
+                        const data = parts.slice(4).join('|');
+
+                        if (!scannedIndices.has(idx)) {
+                            scannedIndices.add(idx);
+                            StateManager.qrBuffer[idx] = data;
+                            NotificationSystem.show(`Captured block ${scannedIndices.size}/${totalExpected}`, 'success');
+                            btn.innerText = `🛑 Scanning... (${scannedIndices.size}/${totalExpected})`;
+                        }
+
+                        if (scannedIndices.size === totalExpected) {
+                            html5QrCode.stop().then(() => {
+                                html5QrCode.clear();
+                                html5QrCode = null;
+                                readerDiv.style.display = 'none';
+                                btn.innerText = '📷 Scan QR to Import';
+
+                                const assembledString = StateManager.qrBuffer.slice(1).join('');
+                                StateManager.qrBuffer = [];
+                                scannedIndices.clear();
+
+                                DialogSystem.confirm(`Syncing ${targetApp}`, `All data chunks captured successfully. Click OK to safely MERGE this data into your device.`).then(proceed => {
+                                    if (proceed) StateManager.processStringImport(assembledString, targetApp, 'merge');
+                                });
+                            });
+                        }
+                    }
+                }
+            }, undefined);
+        });
+
+        // Export/Import: Fallback JSON Files
         document.getElementById('btn-export-data').addEventListener('click', () => {
             const target = document.getElementById('sync-target-select').value;
             StateManager.exportData(target);
@@ -134,7 +240,6 @@ const CoreSystem = {
         document.getElementById('btn-import-merge').addEventListener('click', () => mergeInput.click());
         document.getElementById('btn-import-replace').addEventListener('click', () => replaceInput.click());
 
-        // --- SMART IMPORT ROUTING ---
         const handleSmartImport = async (e, mode) => {
             if (e.target.files.length === 0) return;
             const file = e.target.files[0];
@@ -294,8 +399,7 @@ const CoreSystem = {
             });
         }
 
-        // Generate the grid strictly in the requested order:
-        // Park Info, Projects, Inventory, Fleet, Winter Ops, First Aid, Parts
+        // Generate the grid strictly in the requested order
         return `
             <div style="padding: 2rem;">
                 <h1 style="margin-bottom: 20px;">System Overview</h1>

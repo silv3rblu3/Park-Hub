@@ -139,9 +139,26 @@ function initInventoryLogic() {
                         <thead><tr><th>Actions</th><th style="width: 70px; text-align: center;">Img</th><th>SKU</th><th>Vendor Item ID</th><th>Item Name</th><th>Category</th><th>Location</th><th>Qty on Hand</th><th>Reorder Level</th><th>Target Qty</th></tr></thead>
                         <tbody id="inv-dash-body">`;
             
-            if (invData.items.length === 0) { html += `<tr><td colspan="10" style="text-align:center;">No items found. Import a CSV or add manually.</td></tr>`; } 
-            else {
-                invData.items.forEach(item => {
+            if (invData.items.length === 0) { 
+                html += `<tr><td colspan="10" style="text-align:center;">No items found. Import a CSV or add manually.</td></tr>`; 
+            } else {
+                // Sort array by Category first, then by SKU
+                let sortedItems = [...invData.items].sort((a, b) => {
+                    const catA = (a.category || 'Uncategorized').toLowerCase();
+                    const catB = (b.category || 'Uncategorized').toLowerCase();
+                    
+                    if (catA < catB) return -1;
+                    if (catA > catB) return 1;
+                    
+                    const skuA = String(a.sku || '').toLowerCase();
+                    const skuB = String(b.sku || '').toLowerCase();
+                    
+                    if (skuA < skuB) return -1;
+                    if (skuA > skuB) return 1;
+                    return 0;
+                });
+
+                sortedItems.forEach(item => {
                     const qty = getCurrentQty(item.sku);
                     const target = Number(item.targetQty) || 0;
                     const reorder = Number(item.reorderLevel) || 0;

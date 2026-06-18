@@ -1,6 +1,8 @@
 // js/stateManager.js
 
 const StateManager = {
+    qrBuffer: [], 
+
     defaultState: {
         activeThemeId: 'theme-winchester',
         themes: [
@@ -263,6 +265,61 @@ const StateManager = {
         return imported;
     },
 
+    // --- QR Sync Handlers ---
+    generateQRChunks: function(target) {
+        const state = this.loadGlobalState();
+        let data;
+        
+        if (target === 'global') data = state;
+        else if (target === 'themes') data = state.themes;
+        else data = state.apps[target] || {};
+        
+        const jsonStr = JSON.stringify(data);
+        const maxChunk = 800; // Safe limit for fast mobile camera scanning
+        const chunks = [];
+        
+        for (let i = 0; i < jsonStr.length; i += maxChunk) {
+            chunks.push(jsonStr.substring(i, i + maxChunk));
+        }
+        
+        return chunks.map((chunk, index) => {
+            return `PMH|${target}|${index + 1}|${chunks.length}|${chunk}`;
+        });
+    },
+
+    processStringImport: function(jsonString, target, mode) {
+        try {
+            const imported = JSON.parse(jsonString);
+            let state = this.loadGlobalState();
+
+            if (target === 'global') {
+                if (!imported.apps) throw new Error("Invalid global format");
+                if (mode === 'replace') state = imported;
+                else state = this.smartMerge(state, imported, 'global');
+            } 
+            else if (target === 'themes') {
+                if (!Array.isArray(imported)) throw new Error("Invalid themes format");
+                if (mode === 'replace') state.themes = imported;
+                else state.themes = this.smartMerge(state.themes, imported, 'themes');
+                
+                if (!state.themes.find(t => t.id === state.activeThemeId)) {
+                    state.activeThemeId = state.themes[0].id;
+                }
+            } 
+            else {
+                if (mode === 'replace') state.apps[target] = imported;
+                else state.apps[target] = this.smartMerge(state.apps[target] || {}, imported, target);
+            }
+
+            this.saveGlobalState(state);
+            NotificationSystem.show(`Data Sync Complete. Reloading...`, 'success');
+            setTimeout(() => location.reload(), 1500);
+        } catch (err) {
+            NotificationSystem.show('Import Failed: Data corrupted during scan', 'error');
+        }
+    },
+
+    // --- File Handlers ---
     exportData: function(target) {
         const state = this.loadGlobalState();
         let data, filename;
@@ -296,37 +353,7 @@ const StateManager = {
 
     importData: function(file, target, mode) {
         const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const imported = JSON.parse(e.target.result);
-                let state = this.loadGlobalState();
-
-                if (target === 'global') {
-                    if (!imported.apps) throw new Error("Invalid global format");
-                    if (mode === 'replace') state = imported;
-                    else state = this.smartMerge(state, imported, 'global');
-                } 
-                else if (target === 'themes') {
-                    if (!Array.isArray(imported)) throw new Error("Invalid themes format");
-                    if (mode === 'replace') state.themes = imported;
-                    else state.themes = this.smartMerge(state.themes, imported, 'themes');
-                    
-                    if (!state.themes.find(t => t.id === state.activeThemeId)) {
-                        state.activeThemeId = state.themes[0].id;
-                    }
-                } 
-                else {
-                    if (mode === 'replace') state.apps[target] = imported;
-                    else state.apps[target] = this.smartMerge(state.apps[target] || {}, imported, target);
-                }
-
-                this.saveGlobalState(state);
-                NotificationSystem.show(`Data ${mode === 'replace' ? 'Replaced' : 'Merged'}. Reloading...`, 'success');
-                setTimeout(() => location.reload(), 1500);
-            } catch (err) {
-                NotificationSystem.show('Import Failed: Invalid JSON or corrupted data', 'error');
-            }
-        };
+        reader.onload = (e) => this.processStringImport(e.target.result, target, mode);
         reader.readAsText(file);
     }
 };

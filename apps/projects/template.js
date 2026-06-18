@@ -22,7 +22,7 @@ function renderProjectsApp() {
         .task-priority-Low { border-left: 4px solid #f39c12; }
         
         .task-meta { font-size: 0.85rem; color: var(--text-secondary); margin-top: 5px; }
-        .task-title { margin: 0 0 5px 0; font-size: 1.2rem; color: var(--accent-primary); }
+        .task-title { margin: 0 0 5px 0; font-size: 1.2rem; color: var(--accent-primary); display: flex; align-items: center; gap: 8px; }
         .task-desc { font-size: 0.95rem; margin-bottom: 10px; white-space: pre-wrap; }
         
         .task-actions { display: flex; gap: 10px; flex-shrink: 0; }
@@ -63,6 +63,7 @@ function renderProjectsApp() {
             </div>
             <form id="project-form" class="modal-body">
                 <input type="hidden" id="task-id">
+                <input type="hidden" id="blueprint-id">
                 <input type="hidden" id="task-date-created">
                 
                 <label>Task / Project Title</label>
@@ -77,10 +78,37 @@ function renderProjectsApp() {
                     <option value="Normal" selected>🔵 Normal Priority</option>
                     <option value="Low">🟡 Low Priority</option>
                 </select>
+
+                <label style="cursor: pointer; color: var(--accent-primary); display: block; margin-top: 15px; margin-bottom: 5px; font-weight: bold;">
+                    <input type="checkbox" id="task-is-recurring" style="margin-right: 5px; transform: scale(1.2);"> 🔁 Make this a Repeating Project
+                </label>
+                
+                <div id="task-recurring-options" style="display: none; background: rgba(0,0,0,0.03); padding: 15px; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 15px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <div>
+                            <label style="font-size: 0.85rem;">Repeats</label>
+                            <select id="task-interval" class="app-select" style="margin-bottom: 0;">
+                                <option value="Weekly">Weekly</option>
+                                <option value="Monthly">Monthly</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-size: 0.85rem;">Seasonality</label>
+                            <select id="task-season" class="app-select" style="margin-bottom: 0;">
+                                <option value="Year-Round">Year-Round</option>
+                                <option value="Spring">Spring</option>
+                                <option value="Summer">Summer</option>
+                                <option value="Fall">Fall</option>
+                                <option value="Winter">Winter</option>
+                            </select>
+                        </div>
+                    </div>
+                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 10px; margin-bottom: 0;">Uncompleted repeating tasks will be automatically replaced by the next cycle.</p>
+                </div>
                 
                 <div style="display: flex; gap: 10px; margin-top: 20px;">
                     <button type="submit" class="btn-primary" style="flex: 2;">💾 Save Task</button>
-                    <button type="button" id="task-delete-btn" class="btn-danger hidden" style="flex: 1;">🗑️ Delete</button>
+                    <button type="button" id="task-delete-btn" class="btn-danger" style="display: none; flex: 1;">🗑️ Delete</button>
                 </div>
             </form>
         </dialog>

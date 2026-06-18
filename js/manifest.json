@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "PMH Roster Sync",
+  "version": "1.0",
+  "description": "Scrapes Itinio manifest data and generates an animated QR sequence for the PMH mobile app.",
+  "permissions": [
+    "activeTab",
+    "scripting"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Sync Roster"
+  }
+}
