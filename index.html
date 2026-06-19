@@ -57,6 +57,10 @@
                 <span class="bento-icon">🏠</span>
                 <span class="bento-label">Home</span>
             </button>
+            <button class="bento-item" data-app="roster">
+                <span class="bento-icon">⛺</span>
+                <span class="bento-label">Camp Roster</span>
+            </button>
             <button class="bento-item" data-app="parkInfo">
                 <span class="bento-icon">🌲</span>
                 <span class="bento-label">Park Info</span>
@@ -145,6 +149,7 @@
                 <select id="sync-target-select" class="app-select" style="margin-bottom: 15px;">
                     <option value="global">Global Master (All Apps)</option>
                     <option value="themes">Themes</option>
+                    <option value="roster">Camp Roster</option>
                     <option value="parkInfo">Park Info & Resources</option>
                     <option value="projects">Projects & Tasks</option>
                     <option value="inventory">Inventory Manager</option>
@@ -234,6 +239,8 @@
     <script src="js/notifications.js"></script>
     <script src="js/core.js"></script>
 
+    <script src="apps/roster/template.js"></script>
+    <script src="apps/roster/app.js"></script>
     <script src="apps/park-info/template.js"></script>
     <script src="apps/park-info/app.js"></script>
     <script src="apps/inventory/template.js"></script>

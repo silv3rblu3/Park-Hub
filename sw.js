@@ -1,6 +1,6 @@
 // sw.js
 
-const CACHE_NAME = 'omnihub-v19'; // Bumped version
+const CACHE_NAME = 'omnihub-v20'; // Bumped version for new Roster app
 
 const ASSETS_TO_CACHE = [
     '/Park-Hub/',
@@ -11,6 +11,8 @@ const ASSETS_TO_CACHE = [
     '/Park-Hub/js/core.js',
     '/Park-Hub/js/stateManager.js',
     '/Park-Hub/js/notifications.js',
+    '/Park-Hub/apps/roster/template.js',
+    '/Park-Hub/apps/roster/app.js',
     '/Park-Hub/apps/park-info/template.js',
     '/Park-Hub/apps/park-info/app.js',
     '/Park-Hub/apps/inventory/template.js',
