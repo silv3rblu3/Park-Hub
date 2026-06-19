@@ -275,7 +275,7 @@ const StateManager = {
         else data = state.apps[target] || {};
         
         const jsonStr = JSON.stringify(data);
-        const maxChunk = 800; // Safe limit for fast mobile camera scanning
+        const maxChunk = 250; // DOWNSIZED CHUNK LIMIT: 250 characters for high-speed reliability
         const chunks = [];
         
         for (let i = 0; i < jsonStr.length; i += maxChunk) {

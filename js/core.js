@@ -7,7 +7,7 @@ const CoreSystem = {
     activeScanner: null, 
     qrExportTimer: null,
     isExportingQR: false,
-    qrExportSpeed: 2000, // Default to 2 seconds per frame
+    qrExportSpeed: 500, // Default to 0.5 seconds per frame
     qrExportPaused: false,
 
     // Universal Bulletproof Camera Teardown
@@ -185,7 +185,7 @@ const CoreSystem = {
         });
 
         // ---------------------------------------------------------
-        // 5. Dedicated Modals: QR Export Stream (WITH SPEED CONTROLS)
+        // 5. Dedicated Modals: QR Export Stream
         // ---------------------------------------------------------
         const exportModal = document.getElementById('qr-export-modal');
         const exportCanvas = document.getElementById('qr-export-canvas');
@@ -208,8 +208,8 @@ const CoreSystem = {
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <button id="qr-export-pause-btn" class="btn-outline" style="flex:1; margin-right:15px; font-weight: bold;">⏸️ Pause</button>
                         <div style="flex:2; text-align:right;">
-                            <label style="font-size:0.85rem; font-weight:bold; margin-bottom: 5px; display: block;">Frame Speed: <span id="qr-speed-val">2.0s</span></label>
-                            <input type="range" id="qr-speed-slider" min="0.5" max="5.0" step="0.5" value="2.0" style="width:100%; cursor:pointer;">
+                            <label style="font-size:0.85rem; font-weight:bold; margin-bottom: 5px; display: block;">Frame Speed: <span id="qr-speed-val">0.5s</span></label>
+                            <input type="range" id="qr-speed-slider" min="0.5" max="5.0" step="0.5" value="0.5" style="width:100%; cursor:pointer;">
                         </div>
                     </div>
                 `;
@@ -233,7 +233,6 @@ const CoreSystem = {
                 });
             }
 
-            // Reset pause state on open
             this.qrExportPaused = false;
             const pauseBtn = document.getElementById('qr-export-pause-btn');
             if (pauseBtn) {
@@ -262,7 +261,6 @@ const CoreSystem = {
                 const renderFrame = () => {
                     if (!this.isExportingQR) return; 
 
-                    // If Paused, check back in half a second without advancing the frame
                     if (this.qrExportPaused) {
                         this.qrExportTimer = setTimeout(renderFrame, 500);
                         return;
@@ -276,7 +274,6 @@ const CoreSystem = {
                     currentFrame++;
                     if (currentFrame >= chunks.length) currentFrame = 0; 
                     
-                    // Recursive timeout using the variable speed slider value
                     this.qrExportTimer = setTimeout(renderFrame, this.qrExportSpeed); 
                 };
 
@@ -285,7 +282,7 @@ const CoreSystem = {
         });
 
         document.getElementById('close-qr-export-btn').addEventListener('click', () => {
-            this.isExportingQR = false; // Trigger kill switch
+            this.isExportingQR = false; 
             if (this.qrExportTimer) clearTimeout(this.qrExportTimer);
             exportModal.close();
             settingsModal.showModal();
