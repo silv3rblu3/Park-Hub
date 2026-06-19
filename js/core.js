@@ -4,8 +4,11 @@ document.addEventListener('DOMContentLoaded', () => { CoreSystem.init(); });
 
 const CoreSystem = {
     activeApp: 'home',
-    activeScanner: null, // Unified central camera registry
-    qrExportInterval: null,
+    activeScanner: null, 
+    qrExportTimer: null,
+    isExportingQR: false,
+    qrExportSpeed: 2000, // Default to 2 seconds per frame
+    qrExportPaused: false,
 
     // Universal Bulletproof Camera Teardown
     stopActiveScanner: async function() {
@@ -53,7 +56,6 @@ const CoreSystem = {
                 return; 
             }
 
-            // Dynamically create a camera modal for the global search
             const overlay = document.createElement('dialog');
             overlay.id = 'global-scan-modal';
             overlay.style.width = '90%';
@@ -77,7 +79,6 @@ const CoreSystem = {
             document.body.appendChild(overlay);
             overlay.showModal();
 
-            // Initialize camera after modal is painted
             setTimeout(() => {
                 this.activeScanner = new Html5Qrcode("global-search-reader-canvas");
                 
@@ -94,7 +95,6 @@ const CoreSystem = {
                     this.stopActiveScanner().then(() => {
                         overlay.close();
                         overlay.remove();
-                        // Send the scanned text directly to the search router
                         this.executeGlobalScanSearch(decodedText.trim());
                     });
                 }, undefined).catch(err => {
@@ -185,7 +185,7 @@ const CoreSystem = {
         });
 
         // ---------------------------------------------------------
-        // 5. Dedicated Modals: QR Export Stream
+        // 5. Dedicated Modals: QR Export Stream (WITH SPEED CONTROLS)
         // ---------------------------------------------------------
         const exportModal = document.getElementById('qr-export-modal');
         const exportCanvas = document.getElementById('qr-export-canvas');
@@ -199,37 +199,94 @@ const CoreSystem = {
             
             if (chunks.length === 0) return NotificationSystem.show("No data to export", "error");
 
+            // --- Inject Speed & Pause Controls Dynamically ---
+            if (!document.getElementById('qr-export-controls')) {
+                const controls = document.createElement('div');
+                controls.id = 'qr-export-controls';
+                controls.style = "display:flex; flex-direction:column; gap:10px; margin-top:15px; width:100%; border-top: 1px solid var(--border-color); padding-top: 15px;";
+                controls.innerHTML = `
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <button id="qr-export-pause-btn" class="btn-outline" style="flex:1; margin-right:15px; font-weight: bold;">⏸️ Pause</button>
+                        <div style="flex:2; text-align:right;">
+                            <label style="font-size:0.85rem; font-weight:bold; margin-bottom: 5px; display: block;">Frame Speed: <span id="qr-speed-val">2.0s</span></label>
+                            <input type="range" id="qr-speed-slider" min="0.5" max="5.0" step="0.5" value="2.0" style="width:100%; cursor:pointer;">
+                        </div>
+                    </div>
+                `;
+                exportStatus.parentNode.insertBefore(controls, exportStatus.nextSibling);
+                
+                document.getElementById('qr-speed-slider').addEventListener('input', (e) => {
+                    this.qrExportSpeed = parseFloat(e.target.value) * 1000;
+                    document.getElementById('qr-speed-val').innerText = e.target.value + 's';
+                });
+
+                document.getElementById('qr-export-pause-btn').addEventListener('click', (e) => {
+                    this.qrExportPaused = !this.qrExportPaused;
+                    e.target.innerText = this.qrExportPaused ? "▶️ Resume" : "⏸️ Pause";
+                    if (this.qrExportPaused) {
+                        e.target.classList.remove('btn-outline');
+                        e.target.classList.add('btn-primary');
+                    } else {
+                        e.target.classList.add('btn-outline');
+                        e.target.classList.remove('btn-primary');
+                    }
+                });
+            }
+
+            // Reset pause state on open
+            this.qrExportPaused = false;
+            const pauseBtn = document.getElementById('qr-export-pause-btn');
+            if (pauseBtn) {
+                pauseBtn.innerText = "⏸️ Pause";
+                pauseBtn.classList.add('btn-outline');
+                pauseBtn.classList.remove('btn-primary');
+            }
+
             exportProgress.max = chunks.length;
             exportProgress.value = 0;
             settingsModal.close();
             exportModal.showModal();
             
+            this.isExportingQR = true; 
+            exportCanvas.innerHTML = ''; 
+            
+            const qrInstance = new QRCode(exportCanvas, {
+                width: 200, height: 200,
+                colorDark: "#000000", colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.L
+            });
+            
             let currentFrame = 0;
             
             setTimeout(() => {
                 const renderFrame = () => {
-                    exportCanvas.innerHTML = ''; 
-                    new QRCode(exportCanvas, {
-                        text: chunks[currentFrame],
-                        width: 200, height: 200,
-                        colorDark: "#000000", colorLight: "#ffffff",
-                        correctLevel: QRCode.CorrectLevel.L
-                    });
+                    if (!this.isExportingQR) return; 
+
+                    // If Paused, check back in half a second without advancing the frame
+                    if (this.qrExportPaused) {
+                        this.qrExportTimer = setTimeout(renderFrame, 500);
+                        return;
+                    }
+
+                    qrInstance.makeCode(chunks[currentFrame]);
                     
                     exportStatus.innerText = `Transmitting: Frame ${currentFrame + 1} of ${chunks.length}`;
                     exportProgress.value = currentFrame + 1;
                     
                     currentFrame++;
                     if (currentFrame >= chunks.length) currentFrame = 0; 
+                    
+                    // Recursive timeout using the variable speed slider value
+                    this.qrExportTimer = setTimeout(renderFrame, this.qrExportSpeed); 
                 };
 
                 renderFrame();
-                this.qrExportInterval = setInterval(renderFrame, 1000); 
             }, 100);
         });
 
         document.getElementById('close-qr-export-btn').addEventListener('click', () => {
-            if (this.qrExportInterval) clearInterval(this.qrExportInterval);
+            this.isExportingQR = false; // Trigger kill switch
+            if (this.qrExportTimer) clearTimeout(this.qrExportTimer);
             exportModal.close();
             settingsModal.showModal();
         });
@@ -369,7 +426,6 @@ const CoreSystem = {
         const state = StateManager.loadGlobalState();
         let found = false;
 
-        // Route to Parts Module
         if (state.apps.parts && state.apps.parts.partsCatalog.some(p => p.sku === scannedId || p.id === scannedId)) {
             this.routeToApp('parts');
             setTimeout(() => {
@@ -378,7 +434,6 @@ const CoreSystem = {
             }, 200);
             found = true;
         }
-        // Route to Inventory Module
         else if (state.apps.inventory && state.apps.inventory.items.some(i => i.sku === scannedId || i.id === scannedId)) {
             this.routeToApp('inventory');
             setTimeout(() => {
@@ -387,7 +442,6 @@ const CoreSystem = {
             }, 200);
             found = true;
         }
-        // Route to Fleet Module
         else if (state.apps.fleet && state.apps.fleet.vehicles.some(v => v.id === scannedId)) {
             this.routeToApp('fleet');
             setTimeout(() => {
@@ -554,7 +608,7 @@ const CoreSystem = {
     },
 
     routeToApp: function(appName) {
-        this.stopActiveScanner(); // Ensure no cameras are left running when switching modules or tabs
+        this.stopActiveScanner(); 
         
         this.activeApp = appName;
         const container = document.getElementById('app-container');
