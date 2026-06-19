@@ -169,25 +169,45 @@ const StateManager = {
             winterization: { fall: {}, spring: {} },
             firstAid: { categories: [], items: [], logs: [] },
             parts: { partsCatalog: [], areaTags: {}, kits: [], transactions: [] },
-            projects: { tasks: [] }
+            projects: { tasks: [] },
+            roster: { active: [], history: [], archive: [], siteConfig: {} }
         }
     },
 
     loadGlobalState: function() {
         const stored = localStorage.getItem('omni_master_data');
-        if (!stored) { this.saveGlobalState(this.defaultState); return this.defaultState; }
-        try { return JSON.parse(stored); } catch (e) { return this.defaultState; }
+        if (!stored) { 
+            this.saveGlobalState(this.defaultState); 
+            return this.defaultState; 
+        }
+        try { 
+            return JSON.parse(stored); 
+        } catch (e) { 
+            return this.defaultState; 
+        }
     },
 
-    saveGlobalState: function(stateObject) { localStorage.setItem('omni_master_data', JSON.stringify(stateObject)); },
-    getAppData: function(appName) { return this.loadGlobalState().apps[appName] || {}; },
-    setAppData: function(appName, appData) { let state = this.loadGlobalState(); state.apps[appName] = appData; this.saveGlobalState(state); },
+    saveGlobalState: function(stateObject) { 
+        localStorage.setItem('omni_master_data', JSON.stringify(stateObject)); 
+    },
+
+    getAppData: function(appName) { 
+        return this.loadGlobalState().apps[appName] || {}; 
+    },
+
+    setAppData: function(appName, appData) { 
+        let state = this.loadGlobalState(); 
+        state.apps[appName] = appData; 
+        this.saveGlobalState(state); 
+    },
 
     // --- The Smart Merge Engine ---
     smartMerge: function(local, imported, type) {
         if (type === 'global') {
             let merged = { ...local };
-            if (imported.themes) merged.themes = this.smartMerge(local.themes || [], imported.themes, 'themes');
+            if (imported.themes) {
+                merged.themes = this.smartMerge(local.themes || [], imported.themes, 'themes');
+            }
             if (imported.apps) {
                 for (let app in imported.apps) {
                     merged.apps[app] = this.smartMerge(local.apps[app] || {}, imported.apps[app], app);
@@ -207,23 +227,35 @@ const StateManager = {
         }
         
         if (type === 'inventory') {
-            let merged = { items: local.items || [], transactions: local.transactions || [], categories: local.categories || [] };
-            (imported.categories || []).forEach(c => { if(!merged.categories.includes(c)) merged.categories.push(c); });
+            let merged = { 
+                items: local.items || [], 
+                transactions: local.transactions || [], 
+                categories: local.categories || [] 
+            };
+
+            (imported.categories || []).forEach(c => { 
+                if(!merged.categories.includes(c)) merged.categories.push(c); 
+            });
             
             (imported.items || []).forEach(imp => {
                 const idx = merged.items.findIndex(i => i.sku === imp.sku);
-                if (idx > -1) merged.items[idx] = { ...merged.items[idx], ...imp };
-                else merged.items.push(imp);
+                if (idx > -1) {
+                    merged.items[idx] = { ...merged.items[idx], ...imp };
+                } else {
+                    merged.items.push(imp);
+                }
             });
             
             (imported.transactions || []).forEach(imp => {
-                if (!merged.transactions.some(t => t.id === imp.id)) merged.transactions.push(imp);
+                if (!merged.transactions.some(t => t.id === imp.id)) {
+                    merged.transactions.push(imp);
+                }
             });
             return merged;
         }
 
-        // Generic safe merger for Fleet, First Aid, Parts, Projects, & Park Info (Matches unique IDs)
-        if (['fleet', 'firstAid', 'parts', 'projects', 'parkInfo'].includes(type)) {
+        // Generic safe merger for Fleet, First Aid, Parts, Projects, Park Info, and Roster
+        if (['fleet', 'firstAid', 'parts', 'projects', 'parkInfo', 'roster'].includes(type)) {
             let merged = { ...local };
             for (let key in imported) {
                 if (Array.isArray(imported[key])) {
@@ -231,8 +263,11 @@ const StateManager = {
                     imported[key].forEach(impObj => {
                         if (typeof impObj === 'object' && impObj !== null && impObj.id) {
                             const idx = merged[key].findIndex(i => i.id === impObj.id);
-                            if (idx > -1) merged[key][idx] = { ...merged[key][idx], ...impObj };
-                            else merged[key].push(impObj);
+                            if (idx > -1) {
+                                merged[key][idx] = { ...merged[key][idx], ...impObj };
+                            } else {
+                                merged[key].push(impObj);
+                            }
                         } else {
                             if (typeof impObj !== 'object') {
                                 if (!merged[key].includes(impObj)) merged[key].push(impObj);
@@ -270,12 +305,16 @@ const StateManager = {
         const state = this.loadGlobalState();
         let data;
         
-        if (target === 'global') data = state;
-        else if (target === 'themes') data = state.themes;
-        else data = state.apps[target] || {};
+        if (target === 'global') {
+            data = state;
+        } else if (target === 'themes') {
+            data = state.themes;
+        } else {
+            data = state.apps[target] || {};
+        }
         
         const jsonStr = JSON.stringify(data);
-        const maxChunk = 250; // DOWNSIZED CHUNK LIMIT: 250 characters for high-speed reliability
+        const maxChunk = 250; 
         const chunks = [];
         
         for (let i = 0; i < jsonStr.length; i += maxChunk) {
@@ -294,21 +333,30 @@ const StateManager = {
 
             if (target === 'global') {
                 if (!imported.apps) throw new Error("Invalid global format");
-                if (mode === 'replace') state = imported;
-                else state = this.smartMerge(state, imported, 'global');
+                if (mode === 'replace') {
+                    state = imported;
+                } else {
+                    state = this.smartMerge(state, imported, 'global');
+                }
             } 
             else if (target === 'themes') {
                 if (!Array.isArray(imported)) throw new Error("Invalid themes format");
-                if (mode === 'replace') state.themes = imported;
-                else state.themes = this.smartMerge(state.themes, imported, 'themes');
+                if (mode === 'replace') {
+                    state.themes = imported;
+                } else {
+                    state.themes = this.smartMerge(state.themes, imported, 'themes');
+                }
                 
                 if (!state.themes.find(t => t.id === state.activeThemeId)) {
                     state.activeThemeId = state.themes[0].id;
                 }
             } 
             else {
-                if (mode === 'replace') state.apps[target] = imported;
-                else state.apps[target] = this.smartMerge(state.apps[target] || {}, imported, target);
+                if (mode === 'replace') {
+                    state.apps[target] = imported;
+                } else {
+                    state.apps[target] = this.smartMerge(state.apps[target] || {}, imported, target);
+                }
             }
 
             this.saveGlobalState(state);
