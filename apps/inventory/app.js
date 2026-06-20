@@ -111,25 +111,28 @@ function initInventoryLogic() {
         });
     }
 
+    // State trackers for specific tools
     let pendingAuditSku = null;
     let html5QrCode = null;
-    let qrExportInterval = null;
+    let qrExportTimer = null;
+    let isExportingQR = false;
     let torchOn = false;
 
     function renderInvView(viewName) {
         stage.innerHTML = '';
         
-        // Clean up scanners/intervals universally on view swap
+        // Clean up scanners/timers universally on view swap
         if (html5QrCode) {
             html5QrCode.stop().then(() => {
                 html5QrCode.clear();
                 html5QrCode = null;
             }).catch(err => console.error("Scanner clear failed", err));
         }
-        if (qrExportInterval) {
-            clearInterval(qrExportInterval);
-            qrExportInterval = null;
+        if (qrExportTimer) {
+            clearTimeout(qrExportTimer);
+            qrExportTimer = null;
         }
+        isExportingQR = false; // Kill switch for QR generation
 
         if (viewName !== 'reports') populateCategoryDatalist();
 
@@ -451,7 +454,7 @@ function initInventoryLogic() {
                 }
             });
         }
-else if (viewName === 'audit') {
+        else if (viewName === 'audit') {
             stage.innerHTML = `
             <div class="app-card" style="text-align: center; max-width: 600px; margin: 0 auto;">
                 <h3 style="margin-bottom: 15px;">Inventory Audit Scanner</h3>
@@ -976,26 +979,37 @@ else if (viewName === 'audit') {
                 exportContainer.style.display = 'flex';
                 
                 let currentFrame = 0;
+                isExportingQR = true; // Engage kill switch variable
                 
-                const renderFrame = () => {
-                    exportCanvas.innerHTML = ''; 
-                    new QRCode(exportCanvas, {
-                        text: chunks[currentFrame],
-                        width: 200, height: 200,
-                        colorDark: "#000000", colorLight: "#ffffff",
-                        correctLevel: QRCode.CorrectLevel.L
-                    });
-                    exportStatus.innerText = `Transmitting: Frame ${currentFrame + 1} of ${chunks.length}`;
-                    currentFrame++;
-                    if (currentFrame >= chunks.length) currentFrame = 0; 
-                };
+                setTimeout(() => {
+                    const renderFrame = () => {
+                        // Bail out immediately if user clicked Stop
+                        if (!isExportingQR) return; 
 
-                renderFrame();
-                qrExportInterval = setInterval(renderFrame, 800); 
+                        exportCanvas.innerHTML = ''; 
+                        new QRCode(exportCanvas, {
+                            text: chunks[currentFrame],
+                            width: 200, height: 200,
+                            colorDark: "#000000", colorLight: "#ffffff",
+                            correctLevel: QRCode.CorrectLevel.L
+                        });
+                        
+                        exportStatus.innerText = `Transmitting: Frame ${currentFrame + 1} of ${chunks.length}`;
+                        
+                        currentFrame++;
+                        if (currentFrame >= chunks.length) currentFrame = 0; 
+                        
+                        // Recursive Timeout: Wait 800ms AFTER generation finishes
+                        qrExportTimer = setTimeout(renderFrame, 800); 
+                    };
+
+                    renderFrame();
+                }, 100); 
             });
 
             exportStop.addEventListener('click', () => {
-                if (qrExportInterval) clearInterval(qrExportInterval);
+                isExportingQR = false; // Trigger kill switch
+                if (qrExportTimer) clearTimeout(qrExportTimer);
                 exportContainer.style.display = 'none';
                 exportBtn.style.display = 'block';
             });
@@ -1097,6 +1111,7 @@ else if (viewName === 'audit') {
                     });
                 }, 100);
             });
+
 
             document.getElementById('export-inv-json-btn').addEventListener('click', () => {
                 const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(invData, null, 2));

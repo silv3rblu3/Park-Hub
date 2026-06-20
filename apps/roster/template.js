@@ -14,8 +14,8 @@ function renderRosterApp() {
             background-color: #2c3e50;
             color: #ffffff;
             padding: 10px;
-            text-align: left;
-            border: 1px solid #1a252f;
+            text-align: center;
+            border: 1px solid var(--border-color);
             font-size: 0.9rem;
         }
         .gantt-table td {
@@ -28,12 +28,15 @@ function renderRosterApp() {
         }
         .gantt-site-col {
             width: 180px;
+            min-width: 180px;
+            max-width: 180px;
             padding: 10px !important;
             vertical-align: middle !important;
             background-color: var(--bg-base) !important;
             position: sticky;
             left: 0;
             z-index: 10;
+            text-align: left !important;
             border-right: 2px solid var(--border-color) !important;
         }
         
@@ -51,6 +54,7 @@ function renderRosterApp() {
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
             transition: transform 0.1s, box-shadow 0.1s;
             overflow: hidden;
+            position: relative;
         }
         .camper-block:hover {
             transform: translateY(-2px);
@@ -88,6 +92,8 @@ function renderRosterApp() {
             align-items: flex-start;
             font-size: 0.85rem;
             margin-bottom: 4px;
+            position: relative;
+            z-index: 2;
         }
         .block-name {
             font-weight: bold;
@@ -102,6 +108,8 @@ function renderRosterApp() {
             display: flex;
             align-items: center;
             gap: 8px;
+            position: relative;
+            z-index: 2;
         }
         .status-toggle-btn {
             background: rgba(255,255,255,0.1);
@@ -146,10 +154,23 @@ function renderRosterApp() {
             color: var(--text-secondary);
             font-size: 0.75rem;
             opacity: 0.5;
+            position: relative;
         }
         .empty-cell:hover {
             background-color: rgba(52, 152, 219, 0.1);
             opacity: 1;
+        }
+
+        /* Large Centered Host Watermark */
+        .host-watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.8rem;
+            opacity: 0.4;
+            pointer-events: none;
+            z-index: 1;
         }
 
         /* Dual-Pane Date Picker Styles */
@@ -241,30 +262,171 @@ function renderRosterApp() {
             background: rgba(52, 152, 219, 0.15);
             border-radius: 0;
         }
-        /* Connect the edges of the selection */
         .dr-day.selected.range-start { border-top-right-radius: 0 !important; border-bottom-right-radius: 0 !important; }
         .dr-day.selected.range-end { border-top-left-radius: 0 !important; border-bottom-left-radius: 0 !important; }
+        
+        /* Checkbox list style */
+        .bulk-site-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+            background: var(--bg-base);
+            padding: 5px 8px;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+        }
+        .bulk-site-item:hover {
+            background: rgba(52, 152, 219, 0.1);
+        }
+
+        /* 🖨️ INK-SAVER PRINTING STYLES */
+        @media print {
+            /* Hard margins minimized to maximize printable area */
+            @page { size: portrait; margin: 0.15in; }
+            
+            /* Unbind application viewport scrolling limitations entirely */
+            html, body, #app-container, .app-table-container, #roster-table {
+                overflow: visible !important;
+                overflow-x: visible !important;
+                overflow-y: visible !important;
+                height: auto !important;
+                max-height: none !important;
+                position: static !important;
+            }
+            
+            body { 
+                background: #ffffff !important; 
+                color: #000000 !important; 
+            }
+            
+            /* Hide the UI controls so only the plain table prints */
+            #global-header, #bento-menu, #roster-header, #roster-controls, #sidebar, header, .app-header, dialog, button, select, input { 
+                display: none !important; 
+            }
+            
+            .app-table-container {
+                border: none !important;
+                box-shadow: none !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+            
+            .gantt-table { 
+                width: 100% !important; 
+                border-collapse: collapse !important; 
+                min-width: 0 !important; 
+                table-layout: fixed !important;
+            }
+
+            /* Un-stick the header and site details column to keep row items aligned on multiple pages */
+            #roster-thead, .gantt-site-col {
+                position: static !important;
+            }
+            
+            /* Force exact cell heights across all columns/rows so they match flawlessly */
+            .gantt-table th, .gantt-table td, .gantt-site-col { 
+                background: #ffffff !important; 
+                color: #000000 !important; 
+                border: 1px solid #aaaaaa !important; /* Crisp, thin lines for paper */
+                page-break-inside: avoid;
+                height: 55px !important; 
+                max-height: 55px !important; 
+                overflow: hidden !important;
+            }
+
+            .gantt-table th {
+                padding: 4px !important;
+                font-weight: bold !important;
+                height: auto !important; /* Let the very top header stay normal size */
+            }
+            
+            .gantt-site-col {
+                width: 150px !important;
+                font-weight: bold !important;
+                border-right: 2px solid #aaaaaa !important;
+                padding: 4px 8px !important;
+            }
+            
+            .camper-block { 
+                background: #ffffff !important; 
+                color: #000000 !important; 
+                border: 2px solid #000000 !important; 
+                box-shadow: none !important; 
+                margin: 2px !important;
+                padding: 2px 4px !important;
+                height: calc(100% - 4px) !important; /* Locks exact height relative to the parent cell */
+                display: flex !important;
+                flex-direction: column !important;
+                justify-content: center !important;
+                overflow: hidden !important;
+                box-sizing: border-box !important;
+            }
+
+            /* Forcing text truncation so massive names/dates don't try to stretch the boxes vertically */
+            .block-header, .block-actions, .block-name, .camper-block div, .camper-block span {
+                white-space: nowrap !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+            }
+            
+            .camper-block.closed { 
+                border: 2px dashed #000000 !important; 
+                color: #333333 !important; 
+            }
+            
+            /* Force Loop grouping headers to show clean readable separators */
+            tr[style*="background-color: var(--accent-primary)"] td,
+            tr[style*="var(--accent-primary)"] td {
+                background-color: #e5e5e5 !important;
+                color: #000000 !important;
+                border: 2px solid #aaaaaa !important;
+                font-size: 1.1rem !important;
+                padding: 4px 12px !important;
+                height: 35px !important; /* Keep loop headers a bit tighter */
+            }
+            
+            /* Hide screen action triggers inside table blocks */
+            .status-toggle-btn, .note-telltale { display: none !important; }
+            
+            /* Keep watermarks functional and legible without dark themes enabled */
+            .host-watermark {
+                display: block !important;
+                position: absolute !important;
+                top: 50% !important;
+                left: 50% !important;
+                transform: translate(-50%, -50%) !important;
+                opacity: 0.5 !important;
+                filter: grayscale(100%);
+                color: #000000 !important;
+                font-size: 1.8rem !important;
+                z-index: 1 !important;
+            }
+        }
     </style>
 
     <div style="padding: 2rem;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <div id="roster-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h2>Camp Roster Calendar</h2>
             <div style="display: flex; gap: 10px;">
                 <button id="btn-roster-scan" class="btn-primary">📲 Sync Roster Stream</button>
                 <button id="btn-roster-import-file" class="btn-outline">💾 Import JSON</button>
                 <input type="file" id="file-roster-import" accept=".json" style="display: none;">
                 <button id="btn-manage-sites" class="btn-outline" style="border-color: #3498db; color: #3498db;">⚙️ Master Site Setup</button>
+                <button id="btn-roster-print" class="btn-outline" style="border-color: #9b59b6; color: #9b59b6;">🖨️ Print View</button>
             </div>
         </div>
 
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: var(--bg-surface); padding: 15px; border-radius: var(--radius-md); border: 1px solid var(--border-color); box-shadow: var(--shadow-sm);">
+        <div id="roster-controls" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: var(--bg-surface); padding: 15px; border-radius: var(--radius-md); border: 1px solid var(--border-color); box-shadow: var(--shadow-sm);">
             
             <div style="display: flex; gap: 15px; flex: 1;">
                 <div>
                     <label style="font-weight: bold; font-size: 0.85rem; display: block; margin-bottom: 5px;">Filter by Loop</label>
                     <select id="filter-loop" class="app-select" style="margin-bottom: 0; min-width: 200px;">
                         <option value="All">All Loops</option>
-                        </select>
+                        <!-- Dynamically populated -->
+                    </select>
                 </div>
             </div>
 
@@ -278,12 +440,15 @@ function renderRosterApp() {
         <div class="app-table-container" style="overflow-x: auto; max-height: 65vh;">
             <table class="gantt-table" id="roster-table">
                 <thead id="roster-thead" style="position: sticky; top: 0; z-index: 20;">
-                    </thead>
+                    <!-- Dynamic Date Headers Rendered Here -->
+                </thead>
                 <tbody id="roster-tbody">
-                    </tbody>
+                    <!-- Dynamic Rows Rendered Here -->
+                </tbody>
             </table>
         </div>
 
+        <!-- Custom Dual-Pane Date Range Picker Modal -->
         <dialog id="date-range-modal" style="max-width: 700px; width: 95%;">
             <div class="modal-header">
                 <h3 id="dr-display-text">Select Dates</h3>
@@ -334,6 +499,7 @@ function renderRosterApp() {
             </div>
         </dialog>
 
+        <!-- Empty Site Interaction Modal -->
         <dialog id="empty-site-modal">
             <div class="modal-header">
                 <h3>Manage Availability</h3>
@@ -353,6 +519,7 @@ function renderRosterApp() {
             </div>
         </dialog>
 
+        <!-- Quick Note Modal -->
         <dialog id="quick-note-modal">
             <div class="modal-header">
                 <h3>Camper Notes</h3>
@@ -368,6 +535,7 @@ function renderRosterApp() {
             </div>
         </dialog>
 
+        <!-- Main Camper Detail Modal -->
         <dialog id="camper-modal">
             <div class="modal-header">
                 <h3 id="cm-title">Camper Details</h3>
@@ -403,9 +571,26 @@ function renderRosterApp() {
                     </select>
                 </div>
 
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px;">
-                    <label style="font-weight: bold;">Extra Vehicles</label>
-                    <input type="number" id="cm-extra-veh" class="app-input" style="width: 80px; margin-bottom: 0;" min="0" value="0">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px; border-radius: var(--radius-md); border: 1px solid var(--border-color); background: rgba(0,0,0,0.02);">
+                        <label style="font-weight: bold; margin: 0;">Extra Vehicles</label>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <button type="button" id="btn-ev-minus" class="btn-outline" style="width: 30px; height: 30px; padding: 0; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.2rem;">-</button>
+                            <span id="cm-extra-veh-display" style="width: 25px; text-align: center; font-weight: bold; font-size: 1.1rem;">0</span>
+                            <button type="button" id="btn-ev-plus" class="btn-outline" style="width: 30px; height: 30px; padding: 0; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.2rem;">+</button>
+                        </div>
+                        <input type="hidden" id="cm-extra-veh" value="0">
+                    </div>
+
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px; border-radius: var(--radius-md); border: 1px solid var(--border-color); background: rgba(0,0,0,0.02);">
+                        <label style="font-weight: bold; margin: 0;">ATV / UTV's</label>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <button type="button" id="btn-atv-minus" class="btn-outline" style="width: 30px; height: 30px; padding: 0; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.2rem;">-</button>
+                            <span id="cm-atv-display" style="width: 25px; text-align: center; font-weight: bold; font-size: 1.1rem;">0</span>
+                            <button type="button" id="btn-atv-plus" class="btn-outline" style="width: 30px; height: 30px; padding: 0; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.2rem;">+</button>
+                        </div>
+                        <input type="hidden" id="cm-atv" value="0">
+                    </div>
                 </div>
 
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; background: rgba(231, 76, 60, 0.1); padding: 10px; border-radius: var(--radius-md); border: 1px solid var(--danger-color);">
@@ -427,25 +612,23 @@ function renderRosterApp() {
             </div>
         </dialog>
 
-        <dialog id="site-config-modal">
+        <!-- Comprehensive Site Configuration Modal -->
+        <dialog id="site-config-modal" style="max-width: 650px; width: 95%;">
             <div class="modal-header">
-                <h3>Permanent Site Setup</h3>
+                <h3>Master Site Setup</h3>
                 <button id="btn-sc-close" class="icon-btn">❌</button>
             </div>
-            <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
-                <p style="color: var(--text-secondary); margin-bottom: 15px; font-size: 0.9rem;">Data set here is permanently tied to the site, overriding any scraped data.</p>
+            <div class="modal-body" style="max-height: 75vh; overflow-y: auto;">
                 
                 <div style="display: flex; gap: 10px; margin-bottom: 15px;">
                     <div style="flex: 2;">
-                        <label style="font-weight: bold;">Select Site to Edit</label>
+                        <label style="font-weight: bold;">Select Existing Site to Edit</label>
                         <select id="sc-site-select" class="app-select" style="margin-bottom: 0;"></select>
                     </div>
                     <div style="flex: 1; display: flex; align-items: flex-end;">
-                        <button id="btn-sc-add-new" class="btn-outline" style="width: 100%; margin-bottom: 0; padding: 10px;">+ New Site</button>
+                        <button id="btn-sc-add-new" class="btn-outline" style="width: 100%; margin-bottom: 0; padding: 10px;">+ New Solo Site</button>
                     </div>
                 </div>
-
-                <hr style="margin: 15px 0; border: none; border-top: 1px solid var(--border-color);">
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
                     <div>
@@ -486,19 +669,48 @@ function renderRosterApp() {
                     </div>
                 </div>
 
-                <hr style="margin: 15px 0; border: none; border-top: 1px solid var(--border-color);">
-
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; padding: 10px; border-radius: var(--radius-md); background: rgba(52, 152, 219, 0.1); border: 1px solid #3498db;">
                     <label style="font-weight: bold; color: #3498db;">♿ ADA Accessible</label>
                     <input type="checkbox" id="sc-ada" style="transform: scale(1.5);">
                 </div>
 
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding: 10px; border-radius: var(--radius-md); background: rgba(46, 204, 113, 0.1); border: 1px solid #2ecc71;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; padding: 10px; border-radius: var(--radius-md); background: rgba(46, 204, 113, 0.1); border: 1px solid #2ecc71;">
                     <label style="font-weight: bold; color: #2ecc71;">🏕️ Camp Host Site</label>
                     <input type="checkbox" id="sc-host" style="transform: scale(1.5);">
                 </div>
 
-                <button id="btn-sc-save" class="btn-primary" style="width: 100%;">Save Site Config</button>
+                <button id="btn-sc-save" class="btn-primary" style="width: 100%;">Save Single Site Config</button>
+                <button id="btn-sc-delete" class="btn-outline" style="width: 100%; margin-top: 10px; border-color: var(--danger-color); color: var(--danger-color);">🗑️ Delete Site</button>
+
+                <!-- Safe Bulk Range Assignment Tool -->
+                <hr style="margin: 25px 0 15px 0; border: none; border-top: 2px dashed var(--border-color);">
+                
+                <h4 style="margin-bottom: 5px; color: var(--accent-primary);">Bulk Loop Assignment</h4>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 10px;">Select existing sites from the database below to move them into a new loop simultaneously.</p>
+                
+                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                    <button id="btn-sc-sel-all" class="btn-outline" style="padding: 5px 10px; font-size: 0.8rem;">Select All</button>
+                    <button id="btn-sc-sel-none" class="btn-outline" style="padding: 5px 10px; font-size: 0.8rem;">Deselect All</button>
+                </div>
+
+                <div id="sc-bulk-site-list" style="max-height: 150px; overflow-y: auto; border: 1px solid var(--border-color); padding: 10px; border-radius: var(--radius-md); display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; background: rgba(0,0,0,0.02);">
+                    <!-- Checkboxes populated dynamically -->
+                </div>
+
+                <div style="display: flex; gap: 10px; align-items: flex-end;">
+                    <div style="flex: 1;">
+                        <label style="font-size: 0.85rem; font-weight: bold; display: block; margin-bottom: 5px;">Assign Selected To:</label>
+                        <select id="sc-bulk-loop" class="app-select" style="margin-bottom: 0;">
+                            <option value="Appaloosa (A)">Appaloosa (A)</option>
+                            <option value="Bitterroot (B)">Bitterroot (B)</option>
+                            <option value="Camas (C)">Camas (C)</option>
+                            <option value="Other">Other / Overflow</option>
+                            <option value="Unassigned">Unassigned</option>
+                        </select>
+                    </div>
+                    <button id="btn-sc-bulk-apply" class="btn-primary" style="flex: 1; background-color: var(--accent-primary);">Run Bulk Update</button>
+                </div>
+
             </div>
         </dialog>
     </div>

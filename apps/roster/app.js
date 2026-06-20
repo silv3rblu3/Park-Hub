@@ -5,7 +5,7 @@ window.rosterViewStart.setHours(0, 0, 0, 0);
 window.rosterViewStart.setDate(window.rosterViewStart.getDate() - 1); 
 
 window.rosterViewEnd = new Date(window.rosterViewStart);
-window.rosterViewEnd.setDate(window.rosterViewEnd.getDate() + 7); 
+window.rosterViewEnd.setDate(window.rosterViewEnd.getDate() + 6); 
 
 window.dpViewMonth = new Date();
 window.dpViewMonth.setDate(1); 
@@ -18,30 +18,46 @@ function initRosterLogic() {
     if (!state.apps.roster || typeof state.apps.roster !== 'object' || Array.isArray(state.apps.roster)) {
         state.apps.roster = {};
     }
+
     if (!state.apps.roster.active) {
         state.apps.roster.active = [];
     }
+
     if (!state.apps.roster.history) {
         state.apps.roster.history = [];
     }
+
     if (!state.apps.roster.archive) {
         state.apps.roster.archive = [];
     }
+
     if (!state.apps.roster.siteConfig) {
         state.apps.roster.siteConfig = {};
     }
+
     if (!state.apps.roster.lastPurge) {
         state.apps.roster.lastPurge = Date.now();
     }
 
-    // Patch old data to use the new UID system
     const patchUID = (arr) => {
         arr.forEach(c => {
-            if (!c.uid) {
-                c.uid = c.id + '-' + c.dates.replace(/\s/g, '');
+            const cleanSite = c.site ? c.site.replace(/\s/g, '') : 'UnknownSite';
+            const cleanDates = c.dates ? c.dates.replace(/\s/g, '') : 'UnknownDates';
+            
+            if (!c.uid || !c.uid.includes(cleanSite)) {
+                c.uid = c.id + '-' + cleanSite + '-' + cleanDates;
+            }
+
+            if (c.extraVehicles === undefined) {
+                c.extraVehicles = 0;
+            }
+
+            if (c.atvCount === undefined) {
+                c.atvCount = 0;
             }
         });
     };
+
     patchUID(state.apps.roster.active);
     patchUID(state.apps.roster.history);
     patchUID(state.apps.roster.archive);
@@ -59,6 +75,7 @@ function runLifecycleManager() {
     let state = StateManager.loadGlobalState();
     let roster = state.apps.roster;
     const now = new Date();
+    now.setHours(0,0,0,0);
 
     for (let i = roster.active.length - 1; i >= 0; i--) {
         const camper = roster.active[i];
@@ -67,7 +84,7 @@ function runLifecycleManager() {
             
             if (camper.status === 'Closed') {
                 const parsed = parseRosterDates(camper.dates);
-                if (now.getTime() < parsed.end.getTime()) {
+                if (now.getTime() <= parsed.end.getTime()) {
                     continue; 
                 }
             }
@@ -75,16 +92,19 @@ function runLifecycleManager() {
             if (camper.isArchived) {
                 roster.archive.push(camper);
             } else {
-                camper.historyDate = now.getTime();
+                camper.historyDate = new Date().getTime();
                 roster.history.push(camper);
             }
+
             roster.active.splice(i, 1);
         }
     }
 
     const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+    const purgeThreshold = new Date().getTime() - thirtyDaysMs;
+    
     roster.history = roster.history.filter(c => {
-        return (now.getTime() - c.historyDate) < thirtyDaysMs;
+        return c.historyDate > purgeThreshold;
     });
 
     StateManager.saveGlobalState(state);
@@ -100,7 +120,101 @@ function processSyncManifest() {
     const incomingData = state.apps.roster.manifest;
     let roster = state.apps.roster;
 
+    // --- META SITE IMPORTER ---
+    if (state.apps.roster.manifestMeta && state.apps.roster.manifestMeta.sites) {
+        state.apps.roster.manifestMeta.sites.forEach(s => {
+            if (!roster.siteConfig[s.site]) {
+                roster.siteConfig[s.site] = { 
+                    loop: 'Unassigned', length: '', amps: 'None', water: false, sewer: false, 
+                    isADA: s.isADA, isHost: s.isHost 
+                };
+            } else {
+                if (s.isADA) roster.siteConfig[s.site].isADA = true;
+                if (s.isHost) roster.siteConfig[s.site].isHost = true;
+            }
+        });
+    }
+
+    // --- BULLETPROOF AUTO-PURGE RECONCILIATION ENGINE ---
+    let syncMinTime = null;
+    let syncMaxTime = null;
+
+    if (state.apps.roster.manifestMeta) {
+        const meta = state.apps.roster.manifestMeta;
+        
+        if (meta.viewStart && meta.viewEnd) {
+            const parsedStart = parseRosterDates(meta.viewStart);
+            const parsedEnd = parseRosterDates(meta.viewEnd);
+            
+            if (parsedStart.start.getTime() > 0 && parsedEnd.start.getTime() > 0) {
+                syncMinTime = parsedStart.start.getTime();
+                syncMaxTime = parsedEnd.start.getTime() + (24 * 60 * 60 * 1000);
+            }
+        }
+    }
+
+    const updateCamperDates = (camper, startObj, endObj) => {
+        const formatStr = (d) => `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${String(d.getFullYear()).slice(-2)}`;
+        let newEnd = new Date(endObj);
+        newEnd.setDate(newEnd.getDate() - 1); 
+        
+        let dateStr = startObj.getTime() === newEnd.getTime() ? formatStr(startObj) : `${formatStr(startObj)} - ${formatStr(newEnd)}`;
+        
+        camper.dates = dateStr;
+        camper.uid = camper.id + '-' + camper.site.replace(/\s/g, '') + '-' + dateStr.replace(/\s/g, '');
+    };
+
+    if (syncMinTime !== null && syncMaxTime !== null) {
+        for (let i = roster.active.length - 1; i >= 0; i--) {
+            let localCamper = roster.active[i];
+            
+            if (localCamper.id.startsWith('WALKIN-')) {
+                continue;
+            }
+
+            const localParsed = parseRosterDates(localCamper.dates);
+            const L_s = localParsed.start.getTime();
+            const L_e = localParsed.end.getTime();
+
+            if (L_s === 0) continue; 
+
+            if (L_s < syncMaxTime && L_e > syncMinTime) {
+                
+                const exactMatch = incomingData.find(inc => {
+                    let incUID = inc.id + '-' + inc.site.replace(/\s/g, '') + '-' + inc.dates.replace(/\s/g, '');
+                    return incUID === localCamper.uid;
+                });
+
+                if (!exactMatch) {
+                    const stillHasBookingHere = incomingData.find(inc => inc.id === localCamper.id && inc.site === localCamper.site);
+
+                    if (!stillHasBookingHere) {
+                        if (L_s >= syncMinTime && L_e <= syncMaxTime) {
+                            roster.active.splice(i, 1);
+                        } else if (L_s < syncMinTime && L_e <= syncMaxTime) {
+                            updateCamperDates(localCamper, localParsed.start, new Date(syncMinTime));
+                        } else if (L_s >= syncMinTime && L_e > syncMaxTime) {
+                            updateCamperDates(localCamper, new Date(syncMaxTime), localParsed.end);
+                        } else {
+                            updateCamperDates(localCamper, localParsed.start, new Date(syncMinTime));
+                        }
+                    } else {
+                        roster.active.splice(i, 1);
+                    }
+                } else {
+                    roster.active.splice(i, 1);
+                }
+            }
+        }
+    }
+
+    // --- IMPORT NEW / UPDATED DATA ---
     incomingData.forEach(incoming => {
+        
+        if (!incoming.site || !incoming.dates || !incoming.id) {
+            return;
+        }
+
         if (!roster.siteConfig[incoming.site]) {
             roster.siteConfig[incoming.site] = { 
                 loop: 'Unassigned', 
@@ -120,8 +234,7 @@ function processSyncManifest() {
             }
         }
 
-        // Generate a UID to handle Itinio's split-reservation quirk
-        let incomingUID = incoming.id + '-' + incoming.dates.replace(/\s/g, '');
+        let incomingUID = incoming.id + '-' + incoming.site.replace(/\s/g, '') + '-' + incoming.dates.replace(/\s/g, '');
 
         const existsActive = roster.active.find(c => c.uid === incomingUID);
         const existsHistory = roster.history.find(c => c.uid === incomingUID);
@@ -131,37 +244,32 @@ function processSyncManifest() {
             return; 
         }
 
-        const incomingArrival = incoming.dates.split('-')[0].trim();
+        let initStatus = 'Pending';
+        
+        const isIncomingBlock = incoming.id.startsWith('BLOCKED-');
 
-        const walkInMatchIndex = roster.active.findIndex(c =>
-            c.id.startsWith('WALKIN-') &&
-            c.site === incoming.site &&
-            c.dates.split('-')[0].trim() === incomingArrival
-        );
-
-        if (walkInMatchIndex > -1) {
-            let upgraded = { ...roster.active[walkInMatchIndex] };
-            upgraded.uid = incomingUID;
-            upgraded.id = incoming.id;
-            upgraded.name = incoming.name;
-            roster.active[walkInMatchIndex] = upgraded;
-        } else {
-            roster.active.push({
-                uid: incomingUID,
-                id: incoming.id,
-                name: incoming.name,
-                site: incoming.site,
-                dates: incoming.dates,
-                status: 'Pending',
-                extraVehicles: 0,
-                isTrouble: false,
-                isArchived: false,
-                notes: ''
-            });
+        if (isIncomingBlock) {
+            initStatus = 'Closed';
+            incoming.name = 'Maintenance / Closed';
         }
+
+        roster.active.push({
+            uid: incomingUID,
+            id: incoming.id,
+            name: incoming.name,
+            site: incoming.site,
+            dates: incoming.dates,
+            status: initStatus,
+            extraVehicles: 0,
+            atvCount: 0,
+            isTrouble: false,
+            isArchived: false,
+            notes: ''
+        });
     });
 
     delete roster.manifest;
+    delete roster.manifestMeta;
     StateManager.saveGlobalState(state);
 }
 
@@ -172,6 +280,7 @@ function populateLoopFilter() {
     const currentVal = select.value;
 
     let loops = new Set();
+    
     Object.values(roster.siteConfig).forEach(config => {
         if (config.loop && config.loop !== "Unassigned") {
             loops.add(config.loop);
@@ -192,44 +301,63 @@ function populateLoopFilter() {
 }
 
 function parseRosterDates(dateStr) {
+    if (!dateStr || typeof dateStr !== 'string' || !dateStr.trim() || dateStr === "Unknown Dates") {
+        return { start: new Date(0), end: new Date(0) };
+    }
+
     const currentYear = new Date().getFullYear();
     const parts = dateStr.split('-');
     const startStr = parts[0].trim();
-    
-    const endStr = parts.length > 1 ? parts[1].trim() : startStr;
+    let endStr = parts.length > 1 ? parts[1].trim() : startStr;
 
-    const parsePart = (p) => {
-        if (p.includes('/')) {
-            const dParts = p.split('/');
+    const parseFullPart = (p, defaultMonth = null) => {
+        let clean = p.trim();
+        
+        if (clean.includes('/')) {
+            const dParts = clean.split('/');
             if (dParts.length === 3) {
                 let y = dParts[2].length === 2 ? "20" + dParts[2] : dParts[2];
                 return new Date(`${dParts[0]}/${dParts[1]}/${y}`);
             }
+            if (dParts.length === 2) {
+                return new Date(`${dParts[0]}/${dParts[1]}/${currentYear}`);
+            }
         }
+
+        clean = clean.replace(/^[a-zA-Z]{3}\s/, '').trim(); 
         
-        const clean = p.replace(/^[a-zA-Z]{3}\s/, ''); 
-        
-        if (!isNaN(clean)) {
-            let d = new Date();
+        if (clean !== '' && /^\d+$/.test(clean)) {
+            let d = new Date(window.rosterViewStart);
+            d.setHours(0, 0, 0, 0);
+            if (defaultMonth !== null) {
+                d.setMonth(defaultMonth);
+            }
             d.setDate(parseInt(clean));
             return d;
         }
 
-        const d = new Date(`${clean} ${currentYear}`);
-        
-        if (isNaN(d.getTime())) {
-            return new Date(); 
+        let d = new Date(`${clean} ${currentYear}`);
+        if (!isNaN(d.getTime())) {
+            return d;
         }
-        return d;
+
+        return new Date(0);
     };
 
-    let start = parsePart(startStr);
-    let end = parsePart(endStr);
-    
-    start.setHours(0,0,0,0);
-    end.setHours(0,0,0,0);
+    let start = parseFullPart(startStr);
+    let defaultMonth = start.getTime() > 0 ? start.getMonth() : null;
+    let end = parseFullPart(endStr, defaultMonth);
 
-    end.setDate(end.getDate() + 1);
+    if (end.getTime() === 0 && start.getTime() > 0) {
+        end = new Date(start);
+    }
+    
+    start.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+
+    if (start.getTime() > 0) {
+        end.setDate(end.getDate() + 1);
+    }
 
     return { start, end };
 }
@@ -246,12 +374,12 @@ function renderRosterCalendar() {
 
     let viewDates = [];
     let currentDate = new Date(window.rosterViewStart);
-    
-    let daysToRender = Math.round((window.rosterViewEnd - window.rosterViewStart) / (1000 * 60 * 60 * 24));
+    let daysToRender = Math.round((window.rosterViewEnd - window.rosterViewStart) / (1000 * 60 * 60 * 24)) + 1;
     
     if (daysToRender < 1) {
         daysToRender = 1;
     }
+    
     if (daysToRender > 60) {
         daysToRender = 60; 
     }
@@ -263,21 +391,28 @@ function renderRosterCalendar() {
     }
 
     const formatDateShort = (d) => `${d.toLocaleString('default', { weekday: 'short' })} ${d.toLocaleString('default', { month: 'short' })} ${d.getDate()}`;
+    
     document.getElementById('cal-date-range').innerText = `${formatDateShort(viewDates[0])}  —  ${formatDateShort(viewDates[viewDates.length - 1])}`;
 
     let trHead = document.createElement('tr');
-    trHead.innerHTML = `<th class="gantt-site-col">Site Details</th>`;
+    trHead.innerHTML = `<th class="gantt-site-col">Sites</th>`;
     
     viewDates.forEach(d => {
         let isToday = d.getTime() === new Date().setHours(0,0,0,0) ? 'background-color: #3498db;' : '';
-        trHead.innerHTML += `<th style="${isToday}">${formatDateShort(d)}</th>`;
+        trHead.innerHTML += `<th style="width: 120px; ${isToday}">${formatDateShort(d)}</th>`;
     });
     
     thead.appendChild(trHead);
 
     let allSites = new Set();
-    Object.keys(roster.siteConfig).forEach(s => allSites.add(s));
-    roster.active.forEach(c => allSites.add(c.site));
+    
+    Object.keys(roster.siteConfig).forEach(s => {
+        allSites.add(s);
+    });
+    
+    roster.active.forEach(c => {
+        allSites.add(c.site);
+    });
     
     let siteArray = Array.from(allSites).map(site => {
         const config = roster.siteConfig[site] || { loop: 'Unassigned', length: '', amps: 'None', water: false, sewer: false, isADA: false, isHost: false };
@@ -294,6 +429,7 @@ function renderRosterCalendar() {
     let currentLoopGroup = '';
 
     siteArray.forEach(siteData => {
+        
         if (filterLoop !== 'All' && siteData.loop !== filterLoop) {
             return;
         }
@@ -307,26 +443,32 @@ function renderRosterCalendar() {
         }
 
         const tr = document.createElement('tr');
-        
         let siteDisplay = `<div style="font-size: 1.1rem;"><strong>${siteData.site}</strong>`;
+        
         if (siteData.isADA) {
             siteDisplay += ` <span style="color: #3498db;" title="ADA Accessible">♿</span>`;
         }
+        
         if (siteData.isHost) {
             siteDisplay += ` <span style="color: #2ecc71;" title="Camp Host">🏕️</span>`;
         }
+        
         siteDisplay += `</div>`;
 
         let badges = [];
+        
         if (siteData.length) {
             badges.push(`<span style="font-size: 0.75rem; background: rgba(0,0,0,0.1); padding: 1px 3px; border-radius: 3px;">${siteData.length}ft</span>`);
         }
+        
         if (siteData.amps && siteData.amps !== 'None') {
             badges.push(`<span style="font-size: 0.75rem; background: rgba(241, 196, 15, 0.2); border: 1px solid #f1c40f; padding: 1px 3px; border-radius: 3px; color: #d35400;">⚡ ${siteData.amps}</span>`);
         }
+        
         if (siteData.water) {
             badges.push(`<span style="font-size: 0.75rem; background: rgba(52, 152, 219, 0.2); border: 1px solid #3498db; padding: 1px 3px; border-radius: 3px; color: #2980b9;">💧</span>`);
         }
+        
         if (siteData.sewer) {
             badges.push(`<span style="font-size: 0.75rem; background: rgba(142, 68, 173, 0.2); border: 1px solid #8e44ad; padding: 1px 3px; border-radius: 3px; color: #8e44ad;">🕳️</span>`);
         }
@@ -339,12 +481,17 @@ function renderRosterCalendar() {
 
         let renderedCampers = new Set();
         let i = 0;
+        
+        const hostWatermark = siteData.isHost ? `<div class="host-watermark" title="Camp Host">🏕️</div>` : '';
 
         while (i < viewDates.length) {
             const currentDay = viewDates[i];
             
             const camper = roster.active.find(c => {
-                if (c.site !== siteData.site) return false;
+                if (c.site !== siteData.site) {
+                    return false;
+                }
+                
                 const parsed = parseRosterDates(c.dates);
                 return currentDay.getTime() >= parsed.start.getTime() && currentDay.getTime() < parsed.end.getTime();
             });
@@ -353,13 +500,14 @@ function renderRosterCalendar() {
                 renderedCampers.add(camper.uid);
                 
                 const parsed = parseRosterDates(camper.dates);
-                
                 let span = 0;
+                
                 while ((i + span) < viewDates.length && viewDates[i + span].getTime() < parsed.end.getTime()) {
                     span++;
                 }
 
                 let blockClass = 'camper-block';
+                
                 if (camper.status === 'Checked-In') {
                     blockClass += ' checked-in';
                 }
@@ -373,7 +521,11 @@ function renderRosterCalendar() {
                     blockClass += ' closed';
                 }
 
-                let hasNote = camper.notes && camper.notes.trim() !== '';
+                let hasNote = false;
+                if (camper.notes && camper.notes.trim() !== '') {
+                    hasNote = true;
+                }
+                
                 let noteClass = hasNote ? 'note-telltale has-note' : 'note-telltale no-note';
 
                 let statusIcon = '⏳';
@@ -384,12 +536,27 @@ function renderRosterCalendar() {
                     statusIcon = '👋';
                 }
 
+                let extras = [];
+                
+                if (camper.extraVehicles && camper.extraVehicles > 0) {
+                    extras.push(`🚗 ${camper.extraVehicles}`);
+                }
+                if (camper.atvCount && camper.atvCount > 0) {
+                    extras.push(`🏍️ ${camper.atvCount}`);
+                }
+                
+                let extrasHtml = '';
+                if (extras.length > 0) {
+                    extrasHtml = `<span style="font-size: 0.75rem; background: rgba(0,0,0,0.2); padding: 2px 4px; border-radius: 3px; margin-left: 5px;">${extras.join(' | ')}</span>`;
+                }
+
                 const td = document.createElement('td');
                 td.colSpan = span;
                 
                 if (camper.status === 'Closed') {
                     td.innerHTML = `
                         <div class="${blockClass}" data-id="${camper.uid}">
+                            ${hostWatermark}
                             <strong>${camper.name}</strong>
                             <div style="font-size: 0.8rem; margin-top: 5px;">${camper.dates}</div>
                         </div>
@@ -397,6 +564,7 @@ function renderRosterCalendar() {
                 } else {
                     td.innerHTML = `
                         <div class="${blockClass}" data-id="${camper.uid}">
+                            ${hostWatermark}
                             <div class="block-header">
                                 <span class="block-name">${camper.name}</span>
                                 <span class="${noteClass}" data-note-id="${camper.uid}" title="Notes">📝</span>
@@ -404,16 +572,17 @@ function renderRosterCalendar() {
                             <div class="block-actions">
                                 <button class="status-toggle-btn" data-toggle-id="${camper.uid}" title="Change Status">${statusIcon}</button>
                                 <span style="font-size: 0.8rem; opacity: 0.8;">${camper.dates}</span>
+                                ${extrasHtml}
                             </div>
                         </div>
                     `;
                 }
-                tr.appendChild(td);
                 
+                tr.appendChild(td);
                 i += span; 
             } else {
                 const td = document.createElement('td');
-                td.innerHTML = `<div class="empty-cell" data-site="${siteData.site}" data-date="${currentDay.toISOString()}">${currentDay.getDate()}</div>`;
+                td.innerHTML = `<div class="empty-cell" data-site="${siteData.site}" data-date="${currentDay.toISOString()}">${hostWatermark}${currentDay.getDate()}</div>`;
                 tr.appendChild(td);
                 i++;
             }
@@ -551,7 +720,10 @@ function renderDualDatePicker() {
                 window.dpTempEnd = clickedDate;
             }
 
-            document.querySelectorAll('.dr-quick-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.dr-quick-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
             document.querySelector('.dr-quick-btn[data-range="custom"]').classList.add('active');
 
             renderDualDatePicker();
@@ -596,20 +768,25 @@ function bindRosterEvents() {
         btn.addEventListener('click', (e) => {
             const range = e.target.getAttribute('data-range');
             
-            document.querySelectorAll('.dr-quick-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.dr-quick-btn').forEach(b => {
+                b.classList.remove('active');
+            });
+            
             e.target.classList.add('active');
 
-            if (range === 'custom') return; 
+            if (range === 'custom') {
+                return; 
+            }
 
             let start = new Date();
             let end = new Date();
             start.setHours(0,0,0,0);
             
             if (range === 'this-week') {
-                end.setDate(start.getDate() + 7);
+                end.setDate(start.getDate() + 6);
             } else if (range === 'next-week') {
                 start.setDate(start.getDate() + 7);
-                end.setDate(start.getDate() + 7);
+                end.setDate(start.getDate() + 6);
             } else if (range === 'this-month') {
                 start.setDate(1);
                 end = new Date(start.getFullYear(), start.getMonth() + 1, 0); 
@@ -639,7 +816,9 @@ function bindRosterEvents() {
         }
     });
 
-    document.getElementById('filter-loop').addEventListener('change', renderRosterCalendar);
+    document.getElementById('filter-loop').addEventListener('change', () => {
+        renderRosterCalendar();
+    });
 
     const emptyModal = document.getElementById('empty-site-modal');
     
@@ -649,10 +828,12 @@ function bindRosterEvents() {
     
     document.getElementById('btn-es-walkin').addEventListener('click', async () => {
         emptyModal.close();
+        
         const site = document.getElementById('es-site-val').value;
         const arrivalDate = new Date(document.getElementById('es-date-val').value);
         
         const nightsStr = await DialogSystem.prompt("Add Walk-In", `How many nights are they staying at site ${site}?`, "1");
+        
         if (!nightsStr) {
             return;
         }
@@ -688,6 +869,7 @@ function bindRosterEvents() {
             dates: dateStringForApp,
             status: 'Checked-In', 
             extraVehicles: 0,
+            atvCount: 0,
             isTrouble: false,
             isArchived: false,
             notes: `Walk-in registration for ${nights} night(s).`
@@ -711,6 +893,11 @@ function bindRosterEvents() {
         let state = StateManager.loadGlobalState();
         let uid = `CLOSED-${site.replace(/\s/g, '')}-${new Date().getTime()}`;
         
+        let loopAssigned = 'Unassigned';
+        if (state.apps.roster.siteConfig[site]) {
+            loopAssigned = state.apps.roster.siteConfig[site].loop;
+        }
+        
         state.apps.roster.active.push({
             uid: uid,
             id: uid,
@@ -719,6 +906,7 @@ function bindRosterEvents() {
             dates: `${arrStr} - ${depStr}`, 
             status: 'Closed',
             extraVehicles: 0,
+            atvCount: 0,
             isTrouble: false,
             isArchived: false,
             notes: ''
@@ -731,6 +919,7 @@ function bindRosterEvents() {
     });
 
     const noteModal = document.getElementById('quick-note-modal');
+    
     document.getElementById('btn-qn-close').addEventListener('click', () => {
         noteModal.close();
     });
@@ -749,6 +938,10 @@ function bindRosterEvents() {
             noteModal.close();
             NotificationSystem.show("Notes Saved", "success");
         }
+    });
+
+    document.getElementById('btn-roster-print').addEventListener('click', () => {
+        window.print();
     });
 
     document.getElementById('btn-roster-scan').addEventListener('click', () => {
@@ -778,6 +971,7 @@ function bindRosterEvents() {
                 </div>
             </div>
         `;
+        
         document.body.appendChild(overlay);
         overlay.showModal();
 
@@ -815,11 +1009,17 @@ function bindRosterEvents() {
                 if (scanned.size === expected) {
                     cleanup();
                     const jsonStr = buffer.join('');
+                    
                     try {
                         const importedData = JSON.parse(jsonStr);
                         let state = StateManager.loadGlobalState();
                         
                         state.apps.roster.manifest = importedData.manifest;
+                        
+                        if (importedData.meta) {
+                            state.apps.roster.manifestMeta = importedData.meta;
+                        }
+
                         StateManager.saveGlobalState(state);
 
                         NotificationSystem.show("Roster Sync Complete!", "success");
@@ -865,6 +1065,11 @@ function bindRosterEvents() {
                 
                 let state = StateManager.loadGlobalState();
                 state.apps.roster.manifest = importedData.manifest;
+                
+                if (importedData.meta) {
+                    state.apps.roster.manifestMeta = importedData.meta;
+                }
+
                 StateManager.saveGlobalState(state);
 
                 NotificationSystem.show("File Merged Successfully", "success");
@@ -877,6 +1082,44 @@ function bindRosterEvents() {
             e.target.value = ''; 
         };
         reader.readAsText(file);
+    });
+
+    const evInput = document.getElementById('cm-extra-veh');
+    const evDisplay = document.getElementById('cm-extra-veh-display');
+    
+    document.getElementById('btn-ev-minus').addEventListener('click', () => {
+        let val = parseInt(evInput.value) || 0;
+        if (val > 0) {
+            val--;
+        }
+        evInput.value = val;
+        evDisplay.innerText = val;
+    });
+    
+    document.getElementById('btn-ev-plus').addEventListener('click', () => {
+        let val = parseInt(evInput.value) || 0;
+        val++;
+        evInput.value = val;
+        evDisplay.innerText = val;
+    });
+
+    const atvInput = document.getElementById('cm-atv');
+    const atvDisplay = document.getElementById('cm-atv-display');
+    
+    document.getElementById('btn-atv-minus').addEventListener('click', () => {
+        let val = parseInt(atvInput.value) || 0;
+        if (val > 0) {
+            val--;
+        }
+        atvInput.value = val;
+        atvDisplay.innerText = val;
+    });
+    
+    document.getElementById('btn-atv-plus').addEventListener('click', () => {
+        let val = parseInt(atvInput.value) || 0;
+        val++;
+        atvInput.value = val;
+        atvDisplay.innerText = val;
     });
 
     const camperModal = document.getElementById('camper-modal');
@@ -895,6 +1138,7 @@ function bindRosterEvents() {
         if (camper) {
             camper.status = document.getElementById('cm-status').value;
             camper.extraVehicles = parseInt(document.getElementById('cm-extra-veh').value) || 0;
+            camper.atvCount = parseInt(document.getElementById('cm-atv').value) || 0;
             camper.isTrouble = document.getElementById('cm-trouble').checked;
             camper.notes = document.getElementById('cm-notes').value;
             camper.isArchived = document.getElementById('cm-archive').checked;
@@ -915,16 +1159,33 @@ function bindRosterEvents() {
         const roster = state.apps.roster;
         let allSites = new Set();
         
-        Object.keys(roster.siteConfig).forEach(s => allSites.add(s));
-        roster.active.forEach(c => allSites.add(c.site));
+        Object.keys(roster.siteConfig).forEach(s => {
+            allSites.add(s);
+        });
+        
+        roster.active.forEach(c => {
+            allSites.add(c.site);
+        });
         
         siteSelect.innerHTML = '';
         
-        Array.from(allSites).sort((a,b) => a.localeCompare(b, undefined, {numeric: true, sensitivity: 'base'})).forEach(site => {
+        const bulkList = document.getElementById('sc-bulk-site-list');
+        bulkList.innerHTML = '';
+        
+        const sortedSites = Array.from(allSites).sort((a,b) => a.localeCompare(b, undefined, {numeric: true, sensitivity: 'base'}));
+        
+        sortedSites.forEach(site => {
             siteSelect.innerHTML += `<option value="${site}">${site}</option>`;
+            
+            bulkList.innerHTML += `
+                <label class="bulk-site-item">
+                    <input type="checkbox" class="bulk-site-cb" value="${site}">
+                    ${site}
+                </label>
+            `;
         });
         
-        if (allSites.size > 0) {
+        if (sortedSites.length > 0) {
             siteSelect.dispatchEvent(new Event('change'));
         }
     };
@@ -936,6 +1197,7 @@ function bindRosterEvents() {
 
     document.getElementById('btn-sc-add-new').addEventListener('click', async () => {
         const newSite = await DialogSystem.prompt("Add New Site", "Enter the exact physical Site Number/Name:");
+        
         if (!newSite) {
             return;
         }
@@ -990,7 +1252,10 @@ function bindRosterEvents() {
 
     document.getElementById('btn-sc-save').addEventListener('click', () => {
         const site = siteSelect.value;
-        if (!site) return;
+        
+        if (!site) {
+            return;
+        }
 
         let state = StateManager.loadGlobalState();
         
@@ -1009,8 +1274,78 @@ function bindRosterEvents() {
         StateManager.saveGlobalState(state);
         populateLoopFilter();
         renderRosterCalendar();
-        siteModal.close();
         NotificationSystem.show("Site Configuration Saved", "success");
+    });
+
+    document.getElementById('btn-sc-sel-all').addEventListener('click', () => {
+        document.querySelectorAll('.bulk-site-cb').forEach(cb => {
+            cb.checked = true;
+        });
+    });
+    
+    document.getElementById('btn-sc-sel-none').addEventListener('click', () => {
+        document.querySelectorAll('.bulk-site-cb').forEach(cb => {
+            cb.checked = false;
+        });
+    });
+
+    document.getElementById('btn-sc-bulk-apply').addEventListener('click', () => {
+        const targetLoop = document.getElementById('sc-bulk-loop').value;
+        const checkedBoxes = document.querySelectorAll('.bulk-site-cb:checked');
+        
+        if (checkedBoxes.length === 0) {
+            return NotificationSystem.show("Please select at least one site to move.", "error");
+        }
+
+        let state = StateManager.loadGlobalState();
+        let count = 0;
+
+        checkedBoxes.forEach(cb => {
+            const site = cb.value;
+            if (!state.apps.roster.siteConfig[site]) {
+                state.apps.roster.siteConfig[site] = { 
+                    length: '', 
+                    amps: 'None', 
+                    water: false, 
+                    sewer: false, 
+                    isADA: false, 
+                    isHost: false 
+                };
+            }
+            state.apps.roster.siteConfig[site].loop = targetLoop;
+            count++;
+        });
+
+        StateManager.saveGlobalState(state);
+        populateSiteDropdown();
+        populateLoopFilter();
+        renderRosterCalendar();
+        NotificationSystem.show(`Successfully moved ${count} sites to ${targetLoop}.`, "success");
+    });
+
+    document.getElementById('btn-sc-delete').addEventListener('click', async () => {
+        const site = siteSelect.value;
+        if (!site) return;
+        
+        const confirmed = await DialogSystem.confirm("Delete Site?", `Are you sure you want to completely remove ${site} from the configuration? This will not delete active camper records, but the site will lose its loop and hookup data.`);
+        
+        if (confirmed) {
+            let state = StateManager.loadGlobalState();
+            
+            if (state.apps.roster.siteConfig[site]) {
+                delete state.apps.roster.siteConfig[site];
+                
+                StateManager.saveGlobalState(state);
+                populateSiteDropdown();
+                populateLoopFilter();
+                renderRosterCalendar();
+                NotificationSystem.show("Site Deleted", "success");
+                
+                if (document.getElementById('sc-site-select').options.length === 0) {
+                    siteModal.close();
+                }
+            }
+        }
     });
 }
 
@@ -1019,6 +1354,7 @@ function openCamperModal(uid) {
     const roster = state.apps.roster;
 
     let camper = roster.active.find(c => c.uid === uid) || roster.archive.find(c => c.uid === uid) || roster.history.find(c => c.uid === uid);
+    
     if (!camper) {
         return;
     }
@@ -1032,7 +1368,13 @@ function openCamperModal(uid) {
     document.getElementById('cm-dates').innerText = camper.dates;
 
     document.getElementById('cm-status').value = camper.status;
+    
     document.getElementById('cm-extra-veh').value = camper.extraVehicles || 0;
+    document.getElementById('cm-extra-veh-display').innerText = camper.extraVehicles || 0;
+    
+    document.getElementById('cm-atv').value = camper.atvCount || 0;
+    document.getElementById('cm-atv-display').innerText = camper.atvCount || 0;
+
     document.getElementById('cm-trouble').checked = camper.isTrouble || false;
     document.getElementById('cm-notes').value = camper.notes || '';
     document.getElementById('cm-archive').checked = camper.isArchived || false;
