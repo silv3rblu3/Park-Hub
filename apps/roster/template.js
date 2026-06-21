@@ -8,8 +8,8 @@ function renderRosterApp() {
             width: 100%;
             border-collapse: separate; /* Fixes sticky column bug in mobile browsers */
             border-spacing: 0;
-            table-layout: fixed;
-            min-width: 1000px;
+            table-layout: auto; /* Allows the site column to hug its text tightly */
+            min-width: 100%;
         }
         
         /* Adjusted borders for separated cells to maintain the clean grid look */
@@ -17,6 +17,15 @@ function renderRosterApp() {
             border-bottom: 1px solid var(--border-color);
             border-right: 1px solid var(--border-color);
         }
+        
+        /* Force uniform date columns so they don't squish */
+        .gantt-table th:not(.gantt-site-col),
+        .gantt-table td:not(.gantt-site-col) {
+            width: 120px;
+            min-width: 120px;
+            max-width: 120px;
+        }
+
         .gantt-table th {
             border-top: 1px solid var(--border-color);
             background-color: #2c3e50;
@@ -44,19 +53,20 @@ function renderRosterApp() {
             z-index: 20;
         }
 
-        /* Site Column Sticky Lock */
+        /* Site Column Sticky Lock - No Wasted Space */
         .gantt-site-col {
-            width: 180px;
-            min-width: 180px;
-            max-width: 180px;
-            padding: 10px !important;
+            /* This shrinks the column to exactly fit the text, eliminating wasted space! */
+            width: max-content !important;
+            white-space: nowrap !important;
+            padding: 10px 15px !important;
             vertical-align: middle !important;
             background-color: var(--bg-base) !important;
-            position: sticky;
-            left: 0;
+            position: sticky !important;
+            left: 0 !important;
             z-index: 10;
             text-align: left !important;
-            transition: width 0.3s ease, min-width 0.3s ease, max-width 0.3s ease;
+            border-right: 2px solid var(--border-color) !important;
+            transition: padding 0.1s ease;
         }
         
         /* Forces the absolute top-left corner to stay above everything else */
@@ -64,6 +74,7 @@ function renderRosterApp() {
             z-index: 30 !important; 
         }
         
+        /* Hide the short abbreviation initially */
         .site-short-name {
             display: none;
         }
@@ -394,28 +405,22 @@ function renderRosterApp() {
                 font-size: 0.75rem !important; 
                 padding: 4px !important; 
             }
-            .gantt-table th:not(.gantt-site-col) { 
+            .gantt-table th:not(.gantt-site-col),
+            .gantt-table td:not(.gantt-site-col) { 
                 width: 85px !important; 
                 min-width: 85px !important; 
                 max-width: 85px !important; 
             }
             
             .gantt-site-col {
-                width: 120px !important;
-                min-width: 120px !important;
-                max-width: 120px !important;
-                padding: 4px !important;
+                padding: 8px 10px !important;
             }
             .gantt-site-col strong {
                 font-size: 0.85rem !important;
             }
             
             /* DYNAMIC SCROLL ABBREVIATION (Mobile Only) */
-            .app-table-container.is-scrolled .gantt-site-col {
-                width: 70px !important;
-                min-width: 70px !important;
-                max-width: 70px !important;
-            }
+            /* When the table scrolls right, these classes instantly swap the text */
             .app-table-container.is-scrolled .site-full-name {
                 display: none !important;
             }
@@ -424,6 +429,9 @@ function renderRosterApp() {
             }
             .app-table-container.is-scrolled .print-hide-badges {
                 display: none !important; /* Hide badges when condensed to save space */
+            }
+            .app-table-container.is-scrolled .gantt-site-col {
+                padding: 8px 4px !important; /* Tightens the padding further when abbreviated */
             }
             /* --------------------------------- */
 
@@ -565,7 +573,8 @@ function renderRosterApp() {
             }
             
             .gantt-site-col {
-                width: 150px !important;
+                width: max-content !important;
+                white-space: nowrap !important;
                 font-weight: bold !important;
                 border-right: 2px solid #aaaaaa !important;
                 padding: 4px 8px !important;
