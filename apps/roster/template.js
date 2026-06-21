@@ -443,7 +443,6 @@ function renderRosterApp() {
             .gantt-site-col strong {
                 font-size: 0.85rem !important;
             }
-            
             /* --------------------------------- */
 
             .camper-block {

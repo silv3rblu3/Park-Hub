@@ -744,17 +744,23 @@ function renderDualDatePicker() {
 
 function bindRosterEvents() {
     
-    // --- NEW: Dynamic Scroll Tracker ---
-    // Watches the table wrapper. If you scroll sideways, it adds the 'is-scrolled' class to animate the left column down to an abbreviation.
+    // --- UPDATED: Aggressive Bulletproof Mobile Scroll Tracker ---
     const tableContainer = document.querySelector('.app-table-container');
     if (tableContainer) {
-        tableContainer.addEventListener('scroll', (e) => {
-            if (e.target.scrollLeft > 25) {
-                e.target.classList.add('is-scrolled');
+        const handleScroll = () => {
+            // Lowered threshold to 10px so it snaps almost instantly
+            if (tableContainer.scrollLeft > 10) {
+                tableContainer.classList.add('is-scrolled');
             } else {
-                e.target.classList.remove('is-scrolled');
+                tableContainer.classList.remove('is-scrolled');
             }
-        });
+        };
+        
+        // Listen to native scroll
+        tableContainer.addEventListener('scroll', handleScroll, { passive: true });
+        
+        // CRITICAL FOR MOBILE: Force it to track finger dragging in real-time
+        tableContainer.addEventListener('touchmove', handleScroll, { passive: true });
     }
 
     const dateModal = document.getElementById('date-range-modal');
