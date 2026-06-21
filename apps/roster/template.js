@@ -3,6 +3,15 @@
 function renderRosterApp() {
     return `
     <style>
+        /* Container Hardware Acceleration for Mobile Sticky */
+        .app-table-container {
+            overflow-x: auto;
+            overflow-y: auto;
+            max-height: 65vh;
+            -webkit-overflow-scrolling: touch; /* CRITICAL for mobile sticky columns */
+            position: relative;
+        }
+
         /* Gantt Calendar Styles - Fixed for Mobile Sticky Scrolling */
         .gantt-table {
             width: 100%;
@@ -48,25 +57,25 @@ function renderRosterApp() {
 
         /* Top Header Sticky Lock */
         #roster-thead th {
-            position: sticky;
+            position: -webkit-sticky !important;
+            position: sticky !important;
             top: 0;
             z-index: 20;
         }
 
         /* Site Column Sticky Lock - No Wasted Space */
         .gantt-site-col {
-            /* This shrinks the column to exactly fit the text, eliminating wasted space! */
-            width: max-content !important;
-            white-space: nowrap !important;
-            padding: 10px 15px !important;
-            vertical-align: middle !important;
-            background-color: var(--bg-base) !important;
+            position: -webkit-sticky !important;
             position: sticky !important;
             left: 0 !important;
             z-index: 10;
+            background-color: var(--bg-base) !important;
             text-align: left !important;
             border-right: 2px solid var(--border-color) !important;
-            transition: padding 0.1s ease;
+            padding: 10px 15px !important;
+            width: max-content !important;
+            white-space: nowrap !important;
+            /* NO TRANSITIONS - Animations on sticky elements break mobile browsers */
         }
         
         /* Forces the absolute top-left corner to stay above everything else */
@@ -74,11 +83,25 @@ function renderRosterApp() {
             z-index: 30 !important; 
         }
         
-        /* Hide the short abbreviation initially */
+        /* --- DYNAMIC SCROLL ABBREVIATION (Global for PC, Tablet, Mobile) --- */
         .site-short-name {
             display: none;
         }
         
+        .app-table-container.is-scrolled .site-full-name {
+            display: none !important;
+        }
+        .app-table-container.is-scrolled .site-short-name {
+            display: inline !important;
+        }
+        .app-table-container.is-scrolled .print-hide-badges {
+            display: none !important; /* Hide badges when condensed to save space */
+        }
+        .app-table-container.is-scrolled .gantt-site-col {
+            padding: 10px 8px !important; /* Tightens the padding further when abbreviated */
+        }
+        /* ------------------------------------------------------------------ */
+
         .camper-block {
             background-color: #4b5563;
             color: #ffffff;
@@ -405,6 +428,8 @@ function renderRosterApp() {
                 font-size: 0.75rem !important; 
                 padding: 4px !important; 
             }
+            
+            /* Shrink date columns on phone */
             .gantt-table th:not(.gantt-site-col),
             .gantt-table td:not(.gantt-site-col) { 
                 width: 85px !important; 
@@ -419,20 +444,6 @@ function renderRosterApp() {
                 font-size: 0.85rem !important;
             }
             
-            /* DYNAMIC SCROLL ABBREVIATION (Mobile Only) */
-            /* When the table scrolls right, these classes instantly swap the text */
-            .app-table-container.is-scrolled .site-full-name {
-                display: none !important;
-            }
-            .app-table-container.is-scrolled .site-short-name {
-                display: inline !important;
-            }
-            .app-table-container.is-scrolled .print-hide-badges {
-                display: none !important; /* Hide badges when condensed to save space */
-            }
-            .app-table-container.is-scrolled .gantt-site-col {
-                padding: 8px 4px !important; /* Tightens the padding further when abbreviated */
-            }
             /* --------------------------------- */
 
             .camper-block {
@@ -456,10 +467,6 @@ function renderRosterApp() {
             }
             .host-watermark { 
                 font-size: 1.2rem !important; 
-            }
-
-            .print-hide-badges {
-                flex-wrap: wrap; 
             }
 
             /* Un-grid Modals to Stack Vertically */

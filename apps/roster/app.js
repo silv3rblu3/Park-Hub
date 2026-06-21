@@ -12,6 +12,17 @@ window.dpViewMonth.setDate(1);
 window.dpTempStart = null;
 window.dpTempEnd = null;
 
+// --- Helper function to dynamically abbreviate names (e.g. "Appaloosa 01" -> "A 01") ---
+function getShortSiteName(siteName) {
+    if (!siteName) return '';
+    let clean = siteName.replace(/Double Site/ig, 'DS').replace(/ - /g, ' ');
+    let parts = clean.split(' ');
+    if (parts.length > 1) {
+        return parts[0].charAt(0) + ' ' + parts.slice(1).join(' ');
+    }
+    return clean.substring(0, 4);
+}
+
 function initRosterLogic() {
     let state = StateManager.loadGlobalState();
     
@@ -436,14 +447,18 @@ function renderRosterCalendar() {
         }
 
         const tr = document.createElement('tr');
-        let siteDisplay = `<div style="font-size: 1.1rem;"><strong>${siteData.site}</strong>`;
+        
+        // --- Injected the Full Name vs Short Name HTML Elements ---
+        let siteDisplay = `<div class="site-name-wrapper" style="font-size: 1.1rem; white-space: nowrap; overflow: hidden; display: flex; align-items: center;">
+            <strong class="site-full-name">${siteData.site}</strong>
+            <strong class="site-short-name">${getShortSiteName(siteData.site)}</strong>`;
         
         if (siteData.isADA) {
-            siteDisplay += ` <span style="color: #3498db;" title="ADA Accessible">♿</span>`;
+            siteDisplay += ` <span style="color: #3498db; margin-left: 5px;" title="ADA Accessible">♿</span>`;
         }
         
         if (siteData.isHost) {
-            siteDisplay += ` <span style="color: #2ecc71;" title="Camp Host">🏕️</span>`;
+            siteDisplay += ` <span style="color: #2ecc71; margin-left: 5px;" title="Camp Host">🏕️</span>`;
         }
         
         siteDisplay += `</div>`;
@@ -728,6 +743,20 @@ function renderDualDatePicker() {
 }
 
 function bindRosterEvents() {
+    
+    // --- NEW: Dynamic Scroll Tracker ---
+    // Watches the table wrapper. If you scroll sideways, it adds the 'is-scrolled' class to animate the left column down to an abbreviation.
+    const tableContainer = document.querySelector('.app-table-container');
+    if (tableContainer) {
+        tableContainer.addEventListener('scroll', (e) => {
+            if (e.target.scrollLeft > 25) {
+                e.target.classList.add('is-scrolled');
+            } else {
+                e.target.classList.remove('is-scrolled');
+            }
+        });
+    }
+
     const dateModal = document.getElementById('date-range-modal');
     
     document.getElementById('btn-open-date-picker').addEventListener('click', () => {
