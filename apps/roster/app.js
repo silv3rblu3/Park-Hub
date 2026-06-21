@@ -5,7 +5,7 @@ window.rosterViewStart.setHours(0, 0, 0, 0);
 window.rosterViewStart.setDate(window.rosterViewStart.getDate() - 1); 
 
 window.rosterViewEnd = new Date(window.rosterViewStart);
-window.rosterViewEnd.setDate(window.rosterViewEnd.getDate() + 6); 
+window.rosterViewEnd.setDate(window.rosterViewEnd.getDate() + 3); 
 
 window.dpViewMonth = new Date();
 window.dpViewMonth.setDate(1); 
@@ -77,25 +77,21 @@ function runLifecycleManager() {
     const now = new Date();
     now.setHours(0,0,0,0);
 
+    const fifteenDaysMs = 15 * 24 * 60 * 60 * 1000;
+
     for (let i = roster.active.length - 1; i >= 0; i--) {
         const camper = roster.active[i];
+        const parsed = parseRosterDates(camper.dates);
         
-        if (camper.status === 'Departed' || camper.status === 'Closed') {
-            
-            if (camper.status === 'Closed') {
-                const parsed = parseRosterDates(camper.dates);
-                if (now.getTime() <= parsed.end.getTime()) {
-                    continue; 
-                }
-            }
+        if (parsed.end.getTime() === 0) continue; 
 
+        if (now.getTime() > (parsed.end.getTime() + fifteenDaysMs)) {
             if (camper.isArchived) {
                 roster.archive.push(camper);
             } else {
                 camper.historyDate = new Date().getTime();
                 roster.history.push(camper);
             }
-
             roster.active.splice(i, 1);
         }
     }
@@ -120,7 +116,6 @@ function processSyncManifest() {
     const incomingData = state.apps.roster.manifest;
     let roster = state.apps.roster;
 
-    // --- META SITE IMPORTER ---
     if (state.apps.roster.manifestMeta && state.apps.roster.manifestMeta.sites) {
         state.apps.roster.manifestMeta.sites.forEach(s => {
             if (!roster.siteConfig[s.site]) {
@@ -135,7 +130,6 @@ function processSyncManifest() {
         });
     }
 
-    // --- BULLETPROOF AUTO-PURGE RECONCILIATION ENGINE ---
     let syncMinTime = null;
     let syncMaxTime = null;
 
@@ -208,7 +202,6 @@ function processSyncManifest() {
         }
     }
 
-    // --- IMPORT NEW / UPDATED DATA ---
     incomingData.forEach(incoming => {
         
         if (!incoming.site || !incoming.dates || !incoming.id) {
@@ -474,7 +467,7 @@ function renderRosterCalendar() {
         }
         
         if (badges.length > 0) {
-            siteDisplay += `<div style="display: flex; gap: 4px; margin-top: 5px;">${badges.join('')}</div>`;
+            siteDisplay += `<div class="print-hide-badges" style="display: flex; gap: 4px; margin-top: 5px;">${badges.join('')}</div>`;
         }
 
         tr.innerHTML = `<td class="gantt-site-col">${siteDisplay}</td>`;
@@ -482,6 +475,7 @@ function renderRosterCalendar() {
         let renderedCampers = new Set();
         let i = 0;
         
+        const hostMarker = siteData.isHost ? ' <span style="color: #2ecc71;" title="Camp Host">🏕️</span>' : '';
         const hostWatermark = siteData.isHost ? `<div class="host-watermark" title="Camp Host">🏕️</div>` : '';
 
         while (i < viewDates.length) {
@@ -507,12 +501,17 @@ function renderRosterCalendar() {
                 }
 
                 let blockClass = 'camper-block';
+                let isCheckedClass = '';
+                let statusIcon = '⏳';
                 
                 if (camper.status === 'Checked-In') {
                     blockClass += ' checked-in';
+                    isCheckedClass = 'is-checked';
+                    statusIcon = '✅';
                 }
                 if (camper.status === 'Departed') {
                     blockClass += ' departed';
+                    statusIcon = '👋';
                 }
                 if (camper.isTrouble) {
                     blockClass += ' trouble';
@@ -528,16 +527,7 @@ function renderRosterCalendar() {
                 
                 let noteClass = hasNote ? 'note-telltale has-note' : 'note-telltale no-note';
 
-                let statusIcon = '⏳';
-                if (camper.status === 'Checked-In') {
-                    statusIcon = '✅';
-                }
-                if (camper.status === 'Departed') {
-                    statusIcon = '👋';
-                }
-
                 let extras = [];
-                
                 if (camper.extraVehicles && camper.extraVehicles > 0) {
                     extras.push(`🚗 ${camper.extraVehicles}`);
                 }
@@ -547,8 +537,12 @@ function renderRosterCalendar() {
                 
                 let extrasHtml = '';
                 if (extras.length > 0) {
-                    extrasHtml = `<span style="font-size: 0.75rem; background: rgba(0,0,0,0.2); padding: 2px 4px; border-radius: 3px; margin-left: 5px;">${extras.join(' | ')}</span>`;
+                    extrasHtml = `<span class="screen-extras" style="font-size: 0.75rem; background: rgba(0,0,0,0.2); padding: 2px 4px; border-radius: 3px; margin-left: 5px;">${extras.join(' | ')}</span>`;
                 }
+
+                let pVeh = camper.extraVehicles && camper.extraVehicles > 0 ? camper.extraVehicles : '___';
+                let pAtv = camper.atvCount && camper.atvCount > 0 ? camper.atvCount : '___';
+                let printExtrasHtml = `<div class="print-extras" style="display: none; font-size: 0.8rem; margin-top: 4px; color: #000;">🚗 ${pVeh} &nbsp;|&nbsp; 🏍️ ${pAtv}</div>`;
 
                 const td = document.createElement('td');
                 td.colSpan = span;
@@ -566,7 +560,7 @@ function renderRosterCalendar() {
                         <div class="${blockClass}" data-id="${camper.uid}">
                             ${hostWatermark}
                             <div class="block-header">
-                                <span class="block-name">${camper.name}</span>
+                                <span class="block-name"><span class="print-checkbox ${isCheckedClass}"></span>${camper.name}${hostMarker}</span>
                                 <span class="${noteClass}" data-note-id="${camper.uid}" title="Notes">📝</span>
                             </div>
                             <div class="block-actions">
@@ -574,6 +568,7 @@ function renderRosterCalendar() {
                                 <span style="font-size: 0.8rem; opacity: 0.8;">${camper.dates}</span>
                                 ${extrasHtml}
                             </div>
+                            ${printExtrasHtml}
                         </div>
                     `;
                 }
@@ -582,7 +577,8 @@ function renderRosterCalendar() {
                 i += span; 
             } else {
                 const td = document.createElement('td');
-                td.innerHTML = `<div class="empty-cell" data-site="${siteData.site}" data-date="${currentDay.toISOString()}">${hostWatermark}${currentDay.getDate()}</div>`;
+                let emptyDayText = siteData.isHost ? `<span style="opacity: 0.5;">🏕️ ${currentDay.getDate()}</span>` : currentDay.getDate();
+                td.innerHTML = `<div class="empty-cell" data-site="${siteData.site}" data-date="${currentDay.toISOString()}">${emptyDayText}</div>`;
                 tr.appendChild(td);
                 i++;
             }
@@ -1144,7 +1140,9 @@ function bindRosterEvents() {
             camper.isArchived = document.getElementById('cm-archive').checked;
             
             StateManager.saveGlobalState(state);
-            runLifecycleManager(); 
+            
+            runLifecycleManager();
+            
             renderRosterCalendar();
             camperModal.close();
             NotificationSystem.show("Record Updated", "success");
@@ -1185,6 +1183,31 @@ function bindRosterEvents() {
             `;
         });
         
+        // --- SHIFT-CLICK MULTI-SELECT LOGIC ---
+        let lastChecked = null;
+        const checkboxes = document.querySelectorAll('.bulk-site-cb');
+        
+        checkboxes.forEach(cb => {
+            cb.addEventListener('click', function(e) {
+                if (!lastChecked) {
+                    lastChecked = this;
+                    return;
+                }
+                
+                if (e.shiftKey) {
+                    let start = Array.from(checkboxes).indexOf(this);
+                    let end = Array.from(checkboxes).indexOf(lastChecked);
+                    let range = [start, end].sort((a, b) => a - b);
+                    
+                    for (let i = range[0]; i <= range[1]; i++) {
+                        checkboxes[i].checked = lastChecked.checked; 
+                    }
+                }
+                
+                lastChecked = this;
+            });
+        });
+
         if (sortedSites.length > 0) {
             siteSelect.dispatchEvent(new Event('change'));
         }
@@ -1193,6 +1216,34 @@ function bindRosterEvents() {
     document.getElementById('btn-manage-sites').addEventListener('click', () => {
         populateSiteDropdown();
         siteModal.showModal();
+        
+        // Reset tabs to default Single Site view when opening modal
+        document.querySelectorAll('.sc-tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.sc-tab-content').forEach(c => {
+            c.classList.remove('active');
+            c.style.display = 'none';
+        });
+        document.querySelector('[data-target="sc-tab-single"]').classList.add('active');
+        const singleTab = document.getElementById('sc-tab-single');
+        singleTab.classList.add('active');
+        singleTab.style.display = 'block';
+    });
+    
+    // --- TABS LOGIC BINDING ---
+    document.querySelectorAll('.sc-tab-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            document.querySelectorAll('.sc-tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.sc-tab-content').forEach(c => {
+                c.classList.remove('active');
+                c.style.display = 'none';
+            });
+            
+            e.target.classList.add('active');
+            const targetId = e.target.getAttribute('data-target');
+            const targetContent = document.getElementById(targetId);
+            targetContent.classList.add('active');
+            targetContent.style.display = 'block';
+        });
     });
 
     document.getElementById('btn-sc-add-new').addEventListener('click', async () => {

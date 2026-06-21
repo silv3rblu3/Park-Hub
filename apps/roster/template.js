@@ -101,6 +101,8 @@ function renderRosterApp() {
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            display: flex;
+            align-items: center;
         }
         
         /* Interactive Elements inside block */
@@ -171,6 +173,38 @@ function renderRosterApp() {
             opacity: 0.4;
             pointer-events: none;
             z-index: 1;
+        }
+
+        /* Site Config Tabs */
+        .sc-tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 15px;
+        }
+        .sc-tab-btn {
+            flex: 1;
+            padding: 12px 10px;
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            font-weight: bold;
+            font-size: 1rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: color 0.2s, border-bottom-color 0.2s;
+        }
+        .sc-tab-btn:hover {
+            color: var(--text-primary);
+        }
+        .sc-tab-btn.active {
+            color: var(--accent-primary);
+            border-bottom-color: var(--accent-primary);
+        }
+        .sc-tab-content {
+            display: none;
+        }
+        .sc-tab-content.active {
+            display: block;
         }
 
         /* Dual-Pane Date Picker Styles */
@@ -276,15 +310,21 @@ function renderRosterApp() {
             border-radius: 4px;
             border: 1px solid var(--border-color);
             cursor: pointer;
+            user-select: none;
         }
         .bulk-site-item:hover {
             background: rgba(52, 152, 219, 0.1);
         }
 
+        /* Checkbox injected via JS defaults to hidden on screen */
+        .print-checkbox {
+            display: none;
+        }
+
         /* 🖨️ INK-SAVER PRINTING STYLES */
         @media print {
-            /* Hard margins minimized to maximize printable area */
-            @page { size: portrait; margin: 0.15in; }
+            /* Margin set to 0.3in so it fits perfectly on standard paper */
+            @page { size: portrait; margin: 0.3in; }
             
             /* Unbind application viewport scrolling limitations entirely */
             html, body, #app-container, .app-table-container, #roster-table {
@@ -294,6 +334,16 @@ function renderRosterApp() {
                 height: auto !important;
                 max-height: none !important;
                 position: static !important;
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+
+            #roster-app-wrapper {
+                padding: 0 !important;
+                margin: 0 auto !important;
+                width: 100% !important;
+                max-width: 100% !important;
             }
             
             body { 
@@ -304,6 +354,11 @@ function renderRosterApp() {
             /* Hide the UI controls so only the plain table prints */
             #global-header, #bento-menu, #roster-header, #roster-controls, #sidebar, header, .app-header, dialog, button, select, input { 
                 display: none !important; 
+            }
+
+            /* Hide hookup badges when printing */
+            .print-hide-badges {
+                display: none !important;
             }
             
             .app-table-container {
@@ -325,14 +380,14 @@ function renderRosterApp() {
                 position: static !important;
             }
             
-            /* Force exact cell heights across all columns/rows so they match flawlessly */
+            /* Force cell heights down slightly to 75px to fit 11 perfectly per page */
             .gantt-table th, .gantt-table td, .gantt-site-col { 
                 background: #ffffff !important; 
                 color: #000000 !important; 
-                border: 1px solid #aaaaaa !important; /* Crisp, thin lines for paper */
+                border: 1px solid #aaaaaa !important; /* Crisp, thin lines for paper grid */
                 page-break-inside: avoid;
-                height: 55px !important; 
-                max-height: 55px !important; 
+                height: 75px !important; 
+                max-height: 75px !important; 
                 overflow: hidden !important;
             }
 
@@ -349,19 +404,28 @@ function renderRosterApp() {
                 padding: 4px 8px !important;
             }
             
+            /* The actual reservations get thick borders and slightly rounded corners */
             .camper-block { 
                 background: #ffffff !important; 
                 color: #000000 !important; 
-                border: 2px solid #000000 !important; 
+                border: 2px solid #000000 !important; /* Thicker borders to stand out */
+                border-radius: 6px !important; /* Rounded corners */
                 box-shadow: none !important; 
                 margin: 2px !important;
-                padding: 2px 4px !important;
+                padding: 4px 6px !important;
                 height: calc(100% - 4px) !important; /* Locks exact height relative to the parent cell */
                 display: flex !important;
                 flex-direction: column !important;
-                justify-content: center !important;
+                justify-content: flex-start !important;
                 overflow: hidden !important;
                 box-sizing: border-box !important;
+            }
+
+            /* Specific style for departed campers in print so they gray out beautifully */
+            .camper-block.departed { 
+                background: #f4f4f4 !important; 
+                color: #777777 !important; 
+                border: 2px solid #aaaaaa !important; 
             }
 
             /* Forcing text truncation so massive names/dates don't try to stretch the boxes vertically */
@@ -374,6 +438,7 @@ function renderRosterApp() {
             .camper-block.closed { 
                 border: 2px dashed #000000 !important; 
                 color: #333333 !important; 
+                justify-content: center !important;
             }
             
             /* Force Loop grouping headers to show clean readable separators */
@@ -387,8 +452,37 @@ function renderRosterApp() {
                 height: 35px !important; /* Keep loop headers a bit tighter */
             }
             
-            /* Hide screen action triggers inside table blocks */
-            .status-toggle-btn, .note-telltale { display: none !important; }
+            /* Hide screen action triggers and UI extras inside table blocks */
+            .status-toggle-btn, .note-telltale, .screen-extras { display: none !important; }
+
+            /* Reveal the injected print extras text line for writing in vehicle counts */
+            .print-extras {
+                display: block !important;
+                margin-top: 4px !important;
+                font-size: 0.8rem !important;
+                color: #000000 !important;
+            }
+
+            /* Reveal the injected print checkbox for manual pen check-ins */
+            .print-checkbox {
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                width: 14px !important;
+                height: 14px !important;
+                border: 1px solid #000000 !important;
+                margin-right: 6px !important;
+                vertical-align: middle !important;
+                background: #ffffff !important;
+                font-size: 12px !important;
+                font-weight: bold !important;
+                color: #000000 !important;
+            }
+
+            /* If the JS assigned the is-checked class, fill the box with a checkmark */
+            .print-checkbox.is-checked::after {
+                content: '✔';
+            }
             
             /* Keep watermarks functional and legible without dark themes enabled */
             .host-watermark {
@@ -406,7 +500,7 @@ function renderRosterApp() {
         }
     </style>
 
-    <div style="padding: 2rem;">
+    <div id="roster-app-wrapper" style="padding: 2rem;">
         <div id="roster-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h2>Camp Roster Calendar</h2>
             <div style="display: flex; gap: 10px;">
@@ -425,8 +519,7 @@ function renderRosterApp() {
                     <label style="font-weight: bold; font-size: 0.85rem; display: block; margin-bottom: 5px;">Filter by Loop</label>
                     <select id="filter-loop" class="app-select" style="margin-bottom: 0; min-width: 200px;">
                         <option value="All">All Loops</option>
-                        <!-- Dynamically populated -->
-                    </select>
+                        </select>
                 </div>
             </div>
 
@@ -440,15 +533,12 @@ function renderRosterApp() {
         <div class="app-table-container" style="overflow-x: auto; max-height: 65vh;">
             <table class="gantt-table" id="roster-table">
                 <thead id="roster-thead" style="position: sticky; top: 0; z-index: 20;">
-                    <!-- Dynamic Date Headers Rendered Here -->
-                </thead>
+                    </thead>
                 <tbody id="roster-tbody">
-                    <!-- Dynamic Rows Rendered Here -->
-                </tbody>
+                    </tbody>
             </table>
         </div>
 
-        <!-- Custom Dual-Pane Date Range Picker Modal -->
         <dialog id="date-range-modal" style="max-width: 700px; width: 95%;">
             <div class="modal-header">
                 <h3 id="dr-display-text">Select Dates</h3>
@@ -499,7 +589,6 @@ function renderRosterApp() {
             </div>
         </dialog>
 
-        <!-- Empty Site Interaction Modal -->
         <dialog id="empty-site-modal">
             <div class="modal-header">
                 <h3>Manage Availability</h3>
@@ -519,7 +608,6 @@ function renderRosterApp() {
             </div>
         </dialog>
 
-        <!-- Quick Note Modal -->
         <dialog id="quick-note-modal">
             <div class="modal-header">
                 <h3>Camper Notes</h3>
@@ -535,7 +623,6 @@ function renderRosterApp() {
             </div>
         </dialog>
 
-        <!-- Main Camper Detail Modal -->
         <dialog id="camper-modal">
             <div class="modal-header">
                 <h3 id="cm-title">Camper Details</h3>
@@ -612,7 +699,6 @@ function renderRosterApp() {
             </div>
         </dialog>
 
-        <!-- Comprehensive Site Configuration Modal -->
         <dialog id="site-config-modal" style="max-width: 650px; width: 95%;">
             <div class="modal-header">
                 <h3>Master Site Setup</h3>
@@ -620,95 +706,103 @@ function renderRosterApp() {
             </div>
             <div class="modal-body" style="max-height: 75vh; overflow-y: auto;">
                 
-                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                    <div style="flex: 2;">
-                        <label style="font-weight: bold;">Select Existing Site to Edit</label>
-                        <select id="sc-site-select" class="app-select" style="margin-bottom: 0;"></select>
-                    </div>
-                    <div style="flex: 1; display: flex; align-items: flex-end;">
-                        <button id="btn-sc-add-new" class="btn-outline" style="width: 100%; margin-bottom: 0; padding: 10px;">+ New Solo Site</button>
-                    </div>
+                <div class="sc-tabs">
+                    <button class="sc-tab-btn active" data-target="sc-tab-single">Single Site Edit</button>
+                    <button class="sc-tab-btn" data-target="sc-tab-bulk">Bulk Loop Assign</button>
                 </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
-                    <div>
-                        <label style="font-weight: bold; font-size: 0.9rem;">Loop Assignment</label>
-                        <select id="sc-loop" class="app-select">
-                            <option value="Unassigned">Unassigned</option>
-                            <option value="Appaloosa (A)">Appaloosa (A)</option>
-                            <option value="Bitterroot (B)">Bitterroot (B)</option>
-                            <option value="Camas (C)">Camas (C)</option>
-                            <option value="Other">Other / Overflow</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label style="font-weight: bold; font-size: 0.9rem;">Max Length (ft)</label>
-                        <input type="number" id="sc-length" class="app-input" placeholder="e.g. 45">
-                    </div>
-                </div>
-
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
-                    <div>
-                        <label style="font-weight: bold; font-size: 0.9rem;">Electrical Service</label>
-                        <select id="sc-amps" class="app-select">
-                            <option value="None">Dry / None</option>
-                            <option value="15 Amp">15 Amp</option>
-                            <option value="30 Amp">30 Amp</option>
-                            <option value="50 Amp">50 Amp</option>
-                        </select>
-                    </div>
-                    <div style="display: flex; flex-direction: column; gap: 10px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <label style="font-weight: bold; font-size: 0.9rem;">💧 Water Hookup</label>
-                            <input type="checkbox" id="sc-water" style="transform: scale(1.3);">
+                <div id="sc-tab-single" class="sc-tab-content active">
+                    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                        <div style="flex: 2;">
+                            <label style="font-weight: bold;">Select Existing Site to Edit</label>
+                            <select id="sc-site-select" class="app-select" style="margin-bottom: 0;"></select>
                         </div>
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <label style="font-weight: bold; font-size: 0.9rem;">🕳️ Sewer Hookup</label>
-                            <input type="checkbox" id="sc-sewer" style="transform: scale(1.3);">
+                        <div style="flex: 1; display: flex; align-items: flex-end;">
+                            <button id="btn-sc-add-new" class="btn-outline" style="width: 100%; margin-bottom: 0; padding: 10px;">+ New Solo Site</button>
                         </div>
                     </div>
-                </div>
 
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; padding: 10px; border-radius: var(--radius-md); background: rgba(52, 152, 219, 0.1); border: 1px solid #3498db;">
-                    <label style="font-weight: bold; color: #3498db;">♿ ADA Accessible</label>
-                    <input type="checkbox" id="sc-ada" style="transform: scale(1.5);">
-                </div>
-
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; padding: 10px; border-radius: var(--radius-md); background: rgba(46, 204, 113, 0.1); border: 1px solid #2ecc71;">
-                    <label style="font-weight: bold; color: #2ecc71;">🏕️ Camp Host Site</label>
-                    <input type="checkbox" id="sc-host" style="transform: scale(1.5);">
-                </div>
-
-                <button id="btn-sc-save" class="btn-primary" style="width: 100%;">Save Single Site Config</button>
-                <button id="btn-sc-delete" class="btn-outline" style="width: 100%; margin-top: 10px; border-color: var(--danger-color); color: var(--danger-color);">🗑️ Delete Site</button>
-
-                <!-- Safe Bulk Range Assignment Tool -->
-                <hr style="margin: 25px 0 15px 0; border: none; border-top: 2px dashed var(--border-color);">
-                
-                <h4 style="margin-bottom: 5px; color: var(--accent-primary);">Bulk Loop Assignment</h4>
-                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 10px;">Select existing sites from the database below to move them into a new loop simultaneously.</p>
-                
-                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                    <button id="btn-sc-sel-all" class="btn-outline" style="padding: 5px 10px; font-size: 0.8rem;">Select All</button>
-                    <button id="btn-sc-sel-none" class="btn-outline" style="padding: 5px 10px; font-size: 0.8rem;">Deselect All</button>
-                </div>
-
-                <div id="sc-bulk-site-list" style="max-height: 150px; overflow-y: auto; border: 1px solid var(--border-color); padding: 10px; border-radius: var(--radius-md); display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; background: rgba(0,0,0,0.02);">
-                    <!-- Checkboxes populated dynamically -->
-                </div>
-
-                <div style="display: flex; gap: 10px; align-items: flex-end;">
-                    <div style="flex: 1;">
-                        <label style="font-size: 0.85rem; font-weight: bold; display: block; margin-bottom: 5px;">Assign Selected To:</label>
-                        <select id="sc-bulk-loop" class="app-select" style="margin-bottom: 0;">
-                            <option value="Appaloosa (A)">Appaloosa (A)</option>
-                            <option value="Bitterroot (B)">Bitterroot (B)</option>
-                            <option value="Camas (C)">Camas (C)</option>
-                            <option value="Other">Other / Overflow</option>
-                            <option value="Unassigned">Unassigned</option>
-                        </select>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                        <div>
+                            <label style="font-weight: bold; font-size: 0.9rem;">Loop Assignment</label>
+                            <select id="sc-loop" class="app-select">
+                                <option value="Unassigned">Unassigned</option>
+                                <option value="Appaloosa (A)">Appaloosa (A)</option>
+                                <option value="Bitterroot (B)">Bitterroot (B)</option>
+                                <option value="Camas (C)">Camas (C)</option>
+                                <option value="Other">Other / Overflow</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-weight: bold; font-size: 0.9rem;">Max Length (ft)</label>
+                            <input type="number" id="sc-length" class="app-input" placeholder="e.g. 45">
+                        </div>
                     </div>
-                    <button id="btn-sc-bulk-apply" class="btn-primary" style="flex: 1; background-color: var(--accent-primary);">Run Bulk Update</button>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                        <div>
+                            <label style="font-weight: bold; font-size: 0.9rem;">Electrical Service</label>
+                            <select id="sc-amps" class="app-select">
+                                <option value="None">Dry / None</option>
+                                <option value="15 Amp">15 Amp</option>
+                                <option value="30 Amp">30 Amp</option>
+                                <option value="50 Amp">50 Amp</option>
+                                <option value="15/30 Amp">15/30 Amp</option>
+                                <option value="15/50 Amp">15/50 Amp</option>
+                                <option value="15/30/50 Amp">15/30/50 Amp</option>
+                            </select>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 10px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <label style="font-weight: bold; font-size: 0.9rem;">💧 Water Hookup</label>
+                                <input type="checkbox" id="sc-water" style="transform: scale(1.3);">
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <label style="font-weight: bold; font-size: 0.9rem;">🕳️ Sewer Hookup</label>
+                                <input type="checkbox" id="sc-sewer" style="transform: scale(1.3);">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; padding: 10px; border-radius: var(--radius-md); background: rgba(52, 152, 219, 0.1); border: 1px solid #3498db;">
+                        <label style="font-weight: bold; color: #3498db;">♿ ADA Accessible</label>
+                        <input type="checkbox" id="sc-ada" style="transform: scale(1.5);">
+                    </div>
+
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; padding: 10px; border-radius: var(--radius-md); background: rgba(46, 204, 113, 0.1); border: 1px solid #2ecc71;">
+                        <label style="font-weight: bold; color: #2ecc71;">🏕️ Camp Host Site</label>
+                        <input type="checkbox" id="sc-host" style="transform: scale(1.5);">
+                    </div>
+
+                    <button id="btn-sc-save" class="btn-primary" style="width: 100%;">Save Single Site Config</button>
+                    <button id="btn-sc-delete" class="btn-outline" style="width: 100%; margin-top: 10px; border-color: var(--danger-color); color: var(--danger-color);">🗑️ Delete Site</button>
+                </div>
+
+                <div id="sc-tab-bulk" class="sc-tab-content">
+                    <h4 style="margin-bottom: 5px; color: var(--accent-primary);">Bulk Loop Assignment</h4>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 10px;">Select existing sites from the database below to move them into a new loop simultaneously. (Shift-click to select multiple)</p>
+                    
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                        <button id="btn-sc-sel-all" class="btn-outline" style="padding: 5px 10px; font-size: 0.8rem;">Select All</button>
+                        <button id="btn-sc-sel-none" class="btn-outline" style="padding: 5px 10px; font-size: 0.8rem;">Deselect All</button>
+                    </div>
+
+                    <div id="sc-bulk-site-list" style="max-height: 250px; overflow-y: auto; border: 1px solid var(--border-color); padding: 10px; border-radius: var(--radius-md); display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; background: rgba(0,0,0,0.02);">
+                        </div>
+
+                    <div style="display: flex; gap: 10px; align-items: flex-end;">
+                        <div style="flex: 1;">
+                            <label style="font-size: 0.85rem; font-weight: bold; display: block; margin-bottom: 5px;">Assign Selected To:</label>
+                            <select id="sc-bulk-loop" class="app-select" style="margin-bottom: 0;">
+                                <option value="Appaloosa (A)">Appaloosa (A)</option>
+                                <option value="Bitterroot (B)">Bitterroot (B)</option>
+                                <option value="Camas (C)">Camas (C)</option>
+                                <option value="Other">Other / Overflow</option>
+                                <option value="Unassigned">Unassigned</option>
+                            </select>
+                        </div>
+                        <button id="btn-sc-bulk-apply" class="btn-primary" style="flex: 1; background-color: var(--accent-primary);">Run Bulk Update</button>
+                    </div>
                 </div>
 
             </div>
