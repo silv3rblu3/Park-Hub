@@ -75,7 +75,6 @@ function renderRosterApp() {
             padding: 10px 15px !important;
             width: max-content !important;
             white-space: nowrap !important;
-            /* NO TRANSITIONS - Animations on sticky elements break mobile browsers */
         }
         
         /* Forces the absolute top-left corner to stay above everything else */
@@ -468,6 +467,10 @@ function renderRosterApp() {
                 font-size: 1.2rem !important; 
             }
 
+            .print-hide-badges {
+                flex-wrap: wrap; 
+            }
+
             /* Un-grid Modals to Stack Vertically */
             .responsive-grid {
                 display: flex !important;
@@ -578,12 +581,16 @@ function renderRosterApp() {
                 height: auto !important;
             }
             
+            /* CRITICAL FIX: Hardcode the width to 130px for printing so it never collapses to 0 */
             .gantt-site-col {
-                width: max-content !important;
+                width: 130px !important;
+                min-width: 130px !important;
+                max-width: 130px !important;
                 white-space: nowrap !important;
                 font-weight: bold !important;
                 border-right: 2px solid #aaaaaa !important;
                 padding: 4px 8px !important;
+                overflow: hidden !important;
             }
             
             /* Expand the full name and hide the short abbreviation on print */

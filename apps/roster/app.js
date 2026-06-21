@@ -80,6 +80,21 @@ function initRosterLogic() {
     populateLoopFilter();
     bindRosterEvents();
     renderRosterCalendar();
+    
+    // --- Bulletproof Mobile Scroll Tracker ---
+    // Instead of relying on events that Safari pauses, we tie it to the screen's refresh rate
+    function monitorScroll() {
+        const tc = document.querySelector('.app-table-container');
+        if (tc) {
+            if (tc.scrollLeft > 5) {
+                if (!tc.classList.contains('is-scrolled')) tc.classList.add('is-scrolled');
+            } else {
+                if (tc.classList.contains('is-scrolled')) tc.classList.remove('is-scrolled');
+            }
+        }
+        requestAnimationFrame(monitorScroll);
+    }
+    requestAnimationFrame(monitorScroll);
 }
 
 function runLifecycleManager() {
@@ -743,26 +758,6 @@ function renderDualDatePicker() {
 }
 
 function bindRosterEvents() {
-    
-    // --- UPDATED: Aggressive Bulletproof Mobile Scroll Tracker ---
-    const tableContainer = document.querySelector('.app-table-container');
-    if (tableContainer) {
-        const handleScroll = () => {
-            // Lowered threshold to 10px so it snaps almost instantly
-            if (tableContainer.scrollLeft > 10) {
-                tableContainer.classList.add('is-scrolled');
-            } else {
-                tableContainer.classList.remove('is-scrolled');
-            }
-        };
-        
-        // Listen to native scroll
-        tableContainer.addEventListener('scroll', handleScroll, { passive: true });
-        
-        // CRITICAL FOR MOBILE: Force it to track finger dragging in real-time
-        tableContainer.addEventListener('touchmove', handleScroll, { passive: true });
-    }
-
     const dateModal = document.getElementById('date-range-modal');
     
     document.getElementById('btn-open-date-picker').addEventListener('click', () => {
