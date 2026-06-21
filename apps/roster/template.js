@@ -6,26 +6,45 @@ function renderRosterApp() {
         /* Gantt Calendar Styles */
         .gantt-table {
             width: 100%;
-            border-collapse: collapse;
+            /* Changed to 'separate' to fix the mobile sticky scrolling bug */
+            border-collapse: separate; 
+            border-spacing: 0;
             table-layout: fixed;
             min-width: 1000px;
         }
+        
+        /* Adjusted borders for separated cells to maintain the clean grid look */
+        .gantt-table th, .gantt-table td {
+            border-bottom: 1px solid var(--border-color);
+            border-right: 1px solid var(--border-color);
+        }
         .gantt-table th {
+            border-top: 1px solid var(--border-color);
             background-color: #2c3e50;
             color: #ffffff;
             padding: 10px;
             text-align: center;
-            border: 1px solid var(--border-color);
             font-size: 0.9rem;
         }
         .gantt-table td {
-            border: 1px solid var(--border-color);
             padding: 0;
             vertical-align: top;
             height: 60px;
             position: relative;
             background-color: var(--bg-surface);
         }
+        .gantt-table th:first-child, .gantt-table td:first-child {
+            border-left: 1px solid var(--border-color);
+        }
+
+        /* Top Header Sticky Lock */
+        #roster-thead th {
+            position: sticky;
+            top: 0;
+            z-index: 20;
+        }
+
+        /* Site Column Sticky Lock */
         .gantt-site-col {
             width: 180px;
             min-width: 180px;
@@ -37,7 +56,11 @@ function renderRosterApp() {
             left: 0;
             z-index: 10;
             text-align: left !important;
-            border-right: 2px solid var(--border-color) !important;
+        }
+        
+        /* Forces the absolute top-left corner to stay above everything else */
+        thead .gantt-site-col {
+            z-index: 30 !important; 
         }
         
         .camper-block {
@@ -361,16 +384,52 @@ function renderRosterApp() {
                 justify-content: center;
             }
 
-            /* Compress Gantt Column for Phones */
+            /* --- ZOOM OUT EFFECT FOR MOBILE --- */
+            /* We override the app.js inline widths and scale down text to fit far more on the screen */
+            .gantt-table th { 
+                font-size: 0.75rem !important; 
+                padding: 4px !important; 
+            }
+            .gantt-table th:not(.gantt-site-col) { 
+                width: 85px !important; 
+                min-width: 85px !important; 
+                max-width: 85px !important; 
+            }
+            
             .gantt-site-col {
-                width: 110px !important;
-                min-width: 110px !important;
-                max-width: 110px !important;
-                padding: 5px !important;
+                width: 90px !important;
+                min-width: 90px !important;
+                max-width: 90px !important;
+                padding: 4px !important;
             }
             .gantt-site-col strong {
-                font-size: 0.95rem !important;
+                font-size: 0.85rem !important;
             }
+            
+            .camper-block {
+                padding: 2px 4px !important;
+                margin: 1px !important;
+            }
+            .block-name {
+                font-size: 0.75rem !important;
+            }
+            .block-actions {
+                font-size: 0.7rem !important;
+                gap: 4px !important;
+            }
+            .status-toggle-btn {
+                font-size: 0.7rem !important;
+                padding: 1px 3px !important;
+            }
+            .screen-extras {
+                font-size: 0.6rem !important;
+                padding: 1px 2px !important;
+            }
+            .host-watermark { 
+                font-size: 1.2rem !important; 
+            }
+            /* --------------------------------- */
+
             .print-hide-badges {
                 flex-wrap: wrap; 
             }
@@ -610,7 +669,8 @@ function renderRosterApp() {
                     <label style="font-weight: bold; font-size: 0.85rem; display: block; margin-bottom: 5px;">Filter by Loop</label>
                     <select id="filter-loop" class="app-select" style="margin-bottom: 0; min-width: 200px;">
                         <option value="All">All Loops</option>
-                        </select>
+                        <!-- Dynamically populated -->
+                    </select>
                 </div>
             </div>
 
@@ -623,13 +683,16 @@ function renderRosterApp() {
 
         <div class="app-table-container" style="overflow-x: auto; max-height: 65vh;">
             <table class="gantt-table" id="roster-table">
-                <thead id="roster-thead" style="position: sticky; top: 0; z-index: 20;">
-                    </thead>
+                <thead id="roster-thead">
+                    <!-- Dynamic Date Headers Rendered Here -->
+                </thead>
                 <tbody id="roster-tbody">
-                    </tbody>
+                    <!-- Dynamic Rows Rendered Here -->
+                </tbody>
             </table>
         </div>
 
+        <!-- Custom Dual-Pane Date Range Picker Modal -->
         <dialog id="date-range-modal" style="max-width: 700px; width: 95%;">
             <div class="modal-header">
                 <h3 id="dr-display-text">Select Dates</h3>
@@ -680,6 +743,7 @@ function renderRosterApp() {
             </div>
         </dialog>
 
+        <!-- Empty Site Interaction Modal -->
         <dialog id="empty-site-modal">
             <div class="modal-header">
                 <h3>Manage Availability</h3>
@@ -699,6 +763,7 @@ function renderRosterApp() {
             </div>
         </dialog>
 
+        <!-- Quick Note Modal -->
         <dialog id="quick-note-modal">
             <div class="modal-header">
                 <h3>Camper Notes</h3>
@@ -714,6 +779,7 @@ function renderRosterApp() {
             </div>
         </dialog>
 
+        <!-- Main Camper Detail Modal -->
         <dialog id="camper-modal">
             <div class="modal-header">
                 <h3 id="cm-title">Camper Details</h3>
@@ -790,6 +856,7 @@ function renderRosterApp() {
             </div>
         </dialog>
 
+        <!-- Comprehensive Site Configuration Modal WITH TABS -->
         <dialog id="site-config-modal" style="max-width: 650px; width: 95%;">
             <div class="modal-header">
                 <h3>Master Site Setup</h3>
@@ -802,6 +869,7 @@ function renderRosterApp() {
                     <button class="sc-tab-btn" data-target="sc-tab-bulk">Bulk Loop Assign</button>
                 </div>
 
+                <!-- TAB 1: SINGLE SITE EDIT -->
                 <div id="sc-tab-single" class="sc-tab-content active">
                     <div class="responsive-grid flex-stack" style="display: flex; gap: 10px; margin-bottom: 15px;">
                         <div style="flex: 2; width: 100%;">
@@ -838,6 +906,7 @@ function renderRosterApp() {
                                 <option value="15 Amp">15 Amp</option>
                                 <option value="30 Amp">30 Amp</option>
                                 <option value="50 Amp">50 Amp</option>
+                                <!-- Multi-amp combo options -->
                                 <option value="15/30 Amp">15/30 Amp</option>
                                 <option value="15/50 Amp">15/50 Amp</option>
                                 <option value="15/30/50 Amp">15/30/50 Amp</option>
@@ -869,6 +938,7 @@ function renderRosterApp() {
                     <button id="btn-sc-delete" class="btn-outline" style="width: 100%; margin-top: 10px; border-color: var(--danger-color); color: var(--danger-color);">🗑️ Delete Site</button>
                 </div>
 
+                <!-- TAB 2: BULK LOOP ASSIGNMENT -->
                 <div id="sc-tab-bulk" class="sc-tab-content">
                     <h4 style="margin-bottom: 5px; color: var(--accent-primary);">Bulk Loop Assignment</h4>
                     <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 10px;">Select existing sites from the database below to move them into a new loop simultaneously. (Shift-click to select multiple)</p>
@@ -879,7 +949,8 @@ function renderRosterApp() {
                     </div>
 
                     <div id="sc-bulk-site-list" class="responsive-grid" style="max-height: 250px; overflow-y: auto; border: 1px solid var(--border-color); padding: 10px; border-radius: var(--radius-md); display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; background: rgba(0,0,0,0.02);">
-                        </div>
+                        <!-- Checkboxes populated dynamically -->
+                    </div>
 
                     <div class="responsive-grid flex-stack" style="display: flex; gap: 10px; align-items: flex-end;">
                         <div style="flex: 1; width: 100%;">
