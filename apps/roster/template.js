@@ -321,6 +321,97 @@ function renderRosterApp() {
             display: none;
         }
 
+        /* 📱 MOBILE RESPONSIVE STYLES */
+        @media screen and (max-width: 768px) {
+            #roster-app-wrapper {
+                padding: 10px !important;
+            }
+
+            .responsive-header {
+                flex-direction: column !important;
+                align-items: flex-start !important;
+                gap: 15px;
+            }
+            .responsive-header .header-btns {
+                display: grid !important;
+                grid-template-columns: 1fr 1fr;
+                width: 100%;
+                gap: 8px;
+            }
+            .responsive-header .header-btns button {
+                width: 100%;
+                font-size: 0.8rem;
+                padding: 10px 5px;
+                margin: 0;
+            }
+
+            .responsive-controls {
+                flex-direction: column !important;
+                align-items: stretch !important;
+                gap: 15px;
+            }
+            .responsive-controls > div {
+                width: 100% !important;
+                flex-direction: column !important;
+                align-items: stretch !important;
+            }
+            .responsive-controls button,
+            .responsive-controls select {
+                width: 100% !important;
+                justify-content: center;
+            }
+
+            /* Compress Gantt Column for Phones */
+            .gantt-site-col {
+                width: 110px !important;
+                min-width: 110px !important;
+                max-width: 110px !important;
+                padding: 5px !important;
+            }
+            .gantt-site-col strong {
+                font-size: 0.95rem !important;
+            }
+            .print-hide-badges {
+                flex-wrap: wrap; 
+            }
+
+            /* Un-grid Modals to Stack Vertically */
+            .responsive-grid {
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: stretch !important;
+            }
+
+            /* Date Picker Mobile Adjustments */
+            .dr-container {
+                flex-direction: column;
+            }
+            .dr-sidebar {
+                width: 100%;
+                flex-direction: row;
+                overflow-x: auto;
+                border-right: none;
+                border-bottom: 1px solid var(--border-color);
+            }
+            .dr-sidebar button {
+                flex: 0 0 auto;
+                border-bottom: none;
+                border-right: 1px solid var(--border-color);
+            }
+            
+            /* Hide the second calendar on mobile to prevent squishing */
+            #dr-month-2-label, 
+            .dr-month:nth-child(2) {
+                display: none !important;
+            }
+            
+            /* Fix Tabs text size */
+            .sc-tab-btn {
+                font-size: 0.85rem !important;
+                padding: 10px 5px !important;
+            }
+        }
+
         /* 🖨️ INK-SAVER PRINTING STYLES */
         @media print {
             /* Margin set to 0.3in so it fits perfectly on standard paper */
@@ -501,9 +592,9 @@ function renderRosterApp() {
     </style>
 
     <div id="roster-app-wrapper" style="padding: 2rem;">
-        <div id="roster-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <div id="roster-header" class="responsive-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h2>Camp Roster Calendar</h2>
-            <div style="display: flex; gap: 10px;">
+            <div class="header-btns" style="display: flex; gap: 10px;">
                 <button id="btn-roster-scan" class="btn-primary">📲 Sync Roster Stream</button>
                 <button id="btn-roster-import-file" class="btn-outline">💾 Import JSON</button>
                 <input type="file" id="file-roster-import" accept=".json" style="display: none;">
@@ -512,7 +603,7 @@ function renderRosterApp() {
             </div>
         </div>
 
-        <div id="roster-controls" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: var(--bg-surface); padding: 15px; border-radius: var(--radius-md); border: 1px solid var(--border-color); box-shadow: var(--shadow-sm);">
+        <div id="roster-controls" class="responsive-controls" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: var(--bg-surface); padding: 15px; border-radius: var(--radius-md); border: 1px solid var(--border-color); box-shadow: var(--shadow-sm);">
             
             <div style="display: flex; gap: 15px; flex: 1;">
                 <div>
@@ -631,7 +722,7 @@ function renderRosterApp() {
             <div class="modal-body">
                 <input type="hidden" id="cm-id">
                 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                <div class="responsive-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
                     <div>
                         <label style="font-size: 0.85rem; font-weight: bold; color: var(--text-secondary);">Site</label>
                         <p id="cm-site" style="font-size: 1.1rem; font-weight: bold;"></p>
@@ -658,7 +749,7 @@ function renderRosterApp() {
                     </select>
                 </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                <div class="responsive-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
                     <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px; border-radius: var(--radius-md); border: 1px solid var(--border-color); background: rgba(0,0,0,0.02);">
                         <label style="font-weight: bold; margin: 0;">Extra Vehicles</label>
                         <div style="display: flex; align-items: center; gap: 10px;">
@@ -712,17 +803,17 @@ function renderRosterApp() {
                 </div>
 
                 <div id="sc-tab-single" class="sc-tab-content active">
-                    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                        <div style="flex: 2;">
+                    <div class="responsive-grid flex-stack" style="display: flex; gap: 10px; margin-bottom: 15px;">
+                        <div style="flex: 2; width: 100%;">
                             <label style="font-weight: bold;">Select Existing Site to Edit</label>
-                            <select id="sc-site-select" class="app-select" style="margin-bottom: 0;"></select>
+                            <select id="sc-site-select" class="app-select" style="margin-bottom: 0; width: 100%;"></select>
                         </div>
-                        <div style="flex: 1; display: flex; align-items: flex-end;">
+                        <div style="flex: 1; display: flex; align-items: flex-end; width: 100%;">
                             <button id="btn-sc-add-new" class="btn-outline" style="width: 100%; margin-bottom: 0; padding: 10px;">+ New Solo Site</button>
                         </div>
                     </div>
 
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div class="responsive-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
                         <div>
                             <label style="font-weight: bold; font-size: 0.9rem;">Loop Assignment</label>
                             <select id="sc-loop" class="app-select">
@@ -739,7 +830,7 @@ function renderRosterApp() {
                         </div>
                     </div>
 
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div class="responsive-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
                         <div>
                             <label style="font-weight: bold; font-size: 0.9rem;">Electrical Service</label>
                             <select id="sc-amps" class="app-select">
@@ -787,13 +878,13 @@ function renderRosterApp() {
                         <button id="btn-sc-sel-none" class="btn-outline" style="padding: 5px 10px; font-size: 0.8rem;">Deselect All</button>
                     </div>
 
-                    <div id="sc-bulk-site-list" style="max-height: 250px; overflow-y: auto; border: 1px solid var(--border-color); padding: 10px; border-radius: var(--radius-md); display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; background: rgba(0,0,0,0.02);">
+                    <div id="sc-bulk-site-list" class="responsive-grid" style="max-height: 250px; overflow-y: auto; border: 1px solid var(--border-color); padding: 10px; border-radius: var(--radius-md); display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; background: rgba(0,0,0,0.02);">
                         </div>
 
-                    <div style="display: flex; gap: 10px; align-items: flex-end;">
-                        <div style="flex: 1;">
+                    <div class="responsive-grid flex-stack" style="display: flex; gap: 10px; align-items: flex-end;">
+                        <div style="flex: 1; width: 100%;">
                             <label style="font-size: 0.85rem; font-weight: bold; display: block; margin-bottom: 5px;">Assign Selected To:</label>
-                            <select id="sc-bulk-loop" class="app-select" style="margin-bottom: 0;">
+                            <select id="sc-bulk-loop" class="app-select" style="margin-bottom: 0; width: 100%;">
                                 <option value="Appaloosa (A)">Appaloosa (A)</option>
                                 <option value="Bitterroot (B)">Bitterroot (B)</option>
                                 <option value="Camas (C)">Camas (C)</option>
@@ -801,7 +892,7 @@ function renderRosterApp() {
                                 <option value="Unassigned">Unassigned</option>
                             </select>
                         </div>
-                        <button id="btn-sc-bulk-apply" class="btn-primary" style="flex: 1; background-color: var(--accent-primary);">Run Bulk Update</button>
+                        <button id="btn-sc-bulk-apply" class="btn-primary" style="flex: 1; width: 100%; background-color: var(--accent-primary);">Run Bulk Update</button>
                     </div>
                 </div>
 
