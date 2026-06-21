@@ -12,13 +12,13 @@ function renderRosterApp() {
             position: relative;
         }
 
-        /* Gantt Calendar Styles - Fixed for Mobile Sticky Scrolling */
+        /* Gantt Calendar Styles - Fixed for Dynamic Expansion */
         .gantt-table {
             width: 100%;
-            border-collapse: separate; /* Fixes sticky column bug in mobile browsers */
+            border-collapse: separate; 
             border-spacing: 0;
-            table-layout: auto; /* Allows the site column to hug its text tightly */
-            min-width: 100%;
+            table-layout: fixed; /* Ensures even distribution of remaining space */
+            min-width: max-content; /* Allows table to expand past 100% if min-widths demand it */
         }
         
         /* Adjusted borders for separated cells to maintain the clean grid look */
@@ -27,12 +27,12 @@ function renderRosterApp() {
             border-right: 1px solid var(--border-color);
         }
         
-        /* Force uniform date columns so they don't squish */
+        /* Dynamic Date Columns - Fills empty space, but stops shrinking at 150px */
         .gantt-table th:not(.gantt-site-col),
         .gantt-table td:not(.gantt-site-col) {
-            width: 120px;
-            min-width: 120px;
-            max-width: 120px;
+            width: auto !important; 
+            min-width: 150px !important; /* Nice looking minimum width for standard view */
+            max-width: none !important;
         }
 
         .gantt-table th {
@@ -63,7 +63,7 @@ function renderRosterApp() {
             z-index: 20;
         }
 
-        /* Site Column Sticky Lock - No Wasted Space */
+        /* Site Column Sticky Lock & Capped Width */
         .gantt-site-col {
             position: -webkit-sticky !important;
             position: sticky !important;
@@ -73,8 +73,10 @@ function renderRosterApp() {
             text-align: left !important;
             border-right: 2px solid var(--border-color) !important;
             padding: 10px 15px !important;
-            width: max-content !important;
-            white-space: nowrap !important;
+            width: 260px !important; /* Cap the width so it doesn't devour the screen */
+            max-width: 260px !important;
+            white-space: normal !important; /* Let long text wrap natively */
+            word-wrap: break-word !important;
         }
         
         /* Forces the absolute top-left corner to stay above everything else */
@@ -97,6 +99,9 @@ function renderRosterApp() {
             display: none !important; /* Hide badges when condensed to save space */
         }
         .app-table-container.is-scrolled .gantt-site-col {
+            width: 80px !important;
+            min-width: 80px !important;
+            max-width: 80px !important;
             padding: 10px 8px !important; /* Tightens the padding further when abbreviated */
         }
         /* ------------------------------------------------------------------ */
@@ -428,15 +433,17 @@ function renderRosterApp() {
                 padding: 4px !important; 
             }
             
-            /* Shrink date columns on phone */
+            /* Smaller date columns on phone */
             .gantt-table th:not(.gantt-site-col),
             .gantt-table td:not(.gantt-site-col) { 
-                width: 85px !important; 
-                min-width: 85px !important; 
-                max-width: 85px !important; 
+                width: auto !important; 
+                min-width: 100px !important; 
+                max-width: none !important; 
             }
             
             .gantt-site-col {
+                width: 140px !important;
+                max-width: 140px !important;
                 padding: 8px 10px !important;
             }
             .gantt-site-col strong {
@@ -557,14 +564,24 @@ function renderRosterApp() {
             .gantt-table { 
                 width: 100% !important; 
                 border-collapse: collapse !important; 
-                min-width: 0 !important; 
-                table-layout: fixed !important;
+                min-width: 100% !important; /* Force to exact paper width */
+                table-layout: fixed !important; /* Forces dates to scale and fit evenly */
             }
 
-            #roster-thead, .gantt-site-col {
+            /* Disable sticky positioning in print to prevent the floating ghost header bug */
+            #roster-thead th, .gantt-site-col {
                 position: static !important;
             }
             
+            /* Remove min-width on dates so the printer can scale them freely to fit the page */
+            .gantt-table th:not(.gantt-site-col), 
+            .gantt-table td:not(.gantt-site-col) {
+                width: auto !important;
+                min-width: 0 !important; 
+                max-width: none !important;
+            }
+            
+            /* Force cell heights down slightly to 75px to fit 11 perfectly per page */
             .gantt-table th, .gantt-table td, .gantt-site-col { 
                 background: #ffffff !important; 
                 color: #000000 !important; 
@@ -581,21 +598,30 @@ function renderRosterApp() {
                 height: auto !important;
             }
             
-            /* CRITICAL FIX: Hardcode the width to 130px for printing so it never collapses to 0 */
             .gantt-site-col {
-                width: 130px !important;
-                min-width: 130px !important;
-                max-width: 130px !important;
-                white-space: nowrap !important;
+                width: 160px !important; /* Slightly smaller to give dates room */
+                min-width: 160px !important;
+                max-width: 160px !important;
+                white-space: normal !important; /* Text wrapping allowed */
+                word-wrap: break-word !important;
                 font-weight: bold !important;
                 border-right: 2px solid #aaaaaa !important;
                 padding: 4px 8px !important;
-                overflow: hidden !important;
+                overflow: visible !important;
             }
             
-            /* Expand the full name and hide the short abbreviation on print */
-            .site-full-name { display: inline !important; }
-            .site-short-name { display: none !important; }
+            /* Override the wrapper to allow wrapping and expand the full name */
+            .site-name-wrapper {
+                white-space: normal !important;
+                word-wrap: break-word !important;
+            }
+            .site-full-name { 
+                display: inline !important; 
+                white-space: normal !important;
+            }
+            .site-short-name { 
+                display: none !important; 
+            }
             
             /* The actual reservations get thick borders and slightly rounded corners */
             .camper-block { 
