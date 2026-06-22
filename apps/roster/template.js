@@ -428,8 +428,8 @@ function renderRosterApp() {
             /* Mobile Date Columns */
             .gantt-table th:not(.gantt-site-col),
             .gantt-table td:not(.gantt-site-col) { 
-                width: 200px !important; 
-                min-width: 200px !important; /* THE PHONE SWEET SPOT */
+                width: 300px !important; 
+                min-width: 300px !important; /* THE PHONE SWEET SPOT */
                 max-width: none !important; 
             }
             
