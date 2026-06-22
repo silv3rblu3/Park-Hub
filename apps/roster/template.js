@@ -12,12 +12,13 @@ function renderRosterApp() {
             position: relative;
         }
 
-        /* Gantt Calendar Styles - Perfect Dynamic Expansion */
+        /* Gantt Calendar Styles - THE HOLY GRAIL LAYOUT TRICK */
         .gantt-table {
-            width: 100% !important; /* Fill the screen if few dates are selected */
             border-collapse: separate; 
             border-spacing: 0;
-            table-layout: auto !important; /* CRITICAL: 'auto' forces the browser to obey min-width */
+            table-layout: fixed !important; 
+            width: max-content !important; /* Lets table grow infinitely if columns demand it */
+            min-width: 100% !important; /* Forces table to fill screen if only a few days are selected */
         }
         
         .gantt-table th, .gantt-table td {
@@ -25,11 +26,11 @@ function renderRosterApp() {
             border-right: 1px solid var(--border-color);
         }
         
-        /* Dynamic Date Columns - Fills empty space, but stops shrinking at your minimum */
+        /* Dynamic Date Columns */
         .gantt-table th:not(.gantt-site-col),
         .gantt-table td:not(.gantt-site-col) {
-            width: 100% !important; /* Tricks the table into dividing space equally */
-            min-width: 150px !important; /* <--- TWEAK THIS NUMBER FOR PC/TABLET SWEET SPOT */
+            width: 250px !important; /* Base width. Will grow evenly if min-width: 100% stretches table */
+            min-width: 250px !important; /* THE PC/TABLET SWEET SPOT */
             max-width: none !important;
         }
 
@@ -72,6 +73,7 @@ function renderRosterApp() {
             border-right: 2px solid var(--border-color) !important;
             padding: 10px 15px !important;
             width: 200px !important; 
+            min-width: 200px !important; /* Lock this down so max-content math works perfectly */
             max-width: 200px !important;
             white-space: normal !important; 
             word-wrap: break-word !important;
@@ -423,16 +425,17 @@ function renderRosterApp() {
                 padding: 4px !important; 
             }
             
-            /* Smaller date columns on phone */
+            /* Mobile Date Columns */
             .gantt-table th:not(.gantt-site-col),
             .gantt-table td:not(.gantt-site-col) { 
-                width: 100% !important; 
-                min-width: 100px !important; /* <--- TWEAK THIS NUMBER FOR MOBILE SWEET SPOT */
+                width: 100px !important; 
+                min-width: 100px !important; /* THE PHONE SWEET SPOT */
                 max-width: none !important; 
             }
             
             .gantt-site-col {
                 width: 140px !important;
+                min-width: 140px !important;
                 max-width: 140px !important;
                 padding: 8px 10px !important;
             }
@@ -543,7 +546,6 @@ function renderRosterApp() {
                 padding: 0 !important;
             }
             
-            /* Forces printer to lock column boundaries so dates fit the page */
             .gantt-table { 
                 width: 100% !important; 
                 border-collapse: collapse !important; 
@@ -569,10 +571,10 @@ function renderRosterApp() {
                 color: #000000 !important; 
                 border: 1px solid #aaaaaa !important; 
                 page-break-inside: avoid;
-                height: 55px !important; 
+                height: 55px !important; /* Squished down from 75px */
                 max-height: 55px !important; 
                 overflow: hidden !important;
-                font-size: 14px !important; 
+                font-size: 14px !important; /* Global 14px font */
             }
 
             .gantt-table th {
@@ -582,13 +584,13 @@ function renderRosterApp() {
             }
             
             .gantt-site-col {
-                width: 180px !important; 
+                width: 180px !important; /* Adjust print width */
                 min-width: 180px !important;
                 max-width: 180px !important;
                 white-space: normal !important; 
                 word-wrap: break-word !important;
                 font-weight: bold !important;
-                font-size: 16px !important; 
+                font-size: 16px !important; /* Site name slightly larger */
                 border-right: 2px solid #aaaaaa !important;
                 padding: 4px 8px !important;
                 overflow: visible !important;
@@ -613,7 +615,7 @@ function renderRosterApp() {
                 border-radius: 6px !important; 
                 box-shadow: none !important; 
                 margin: 2px !important;
-                padding: 2px 4px !important; 
+                padding: 2px 4px !important; /* Tighter padding for squished block */
                 height: calc(100% - 4px) !important; 
                 display: flex !important;
                 flex-direction: column !important;
