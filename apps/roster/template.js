@@ -8,7 +8,7 @@ function renderRosterApp() {
             overflow-x: auto;
             overflow-y: auto;
             max-height: 65vh;
-            -webkit-overflow-scrolling: touch; /* CRITICAL for mobile sticky columns */
+            -webkit-overflow-scrolling: touch; 
             position: relative;
         }
 
@@ -17,11 +17,10 @@ function renderRosterApp() {
             width: 100%;
             border-collapse: separate; 
             border-spacing: 0;
-            table-layout: fixed; /* Ensures even distribution of remaining space */
-            min-width: max-content; /* Allows table to expand past 100% if min-widths demand it */
+            table-layout: fixed; 
+            min-width: max-content; 
         }
         
-        /* Adjusted borders for separated cells to maintain the clean grid look */
         .gantt-table th, .gantt-table td {
             border-bottom: 1px solid var(--border-color);
             border-right: 1px solid var(--border-color);
@@ -31,7 +30,7 @@ function renderRosterApp() {
         .gantt-table th:not(.gantt-site-col),
         .gantt-table td:not(.gantt-site-col) {
             width: auto !important; 
-            min-width: 150px !important; /* Nice looking minimum width for standard view */
+            min-width: 150px !important; 
             max-width: none !important;
         }
 
@@ -73,13 +72,12 @@ function renderRosterApp() {
             text-align: left !important;
             border-right: 2px solid var(--border-color) !important;
             padding: 10px 15px !important;
-            width: 260px !important; /* Cap the width so it doesn't devour the screen */
-            max-width: 260px !important;
-            white-space: normal !important; /* Let long text wrap natively */
+            width: 200px !important; 
+            max-width: 200px !important;
+            white-space: normal !important; 
             word-wrap: break-word !important;
         }
         
-        /* Forces the absolute top-left corner to stay above everything else */
         thead .gantt-site-col {
             z-index: 30 !important; 
         }
@@ -96,13 +94,13 @@ function renderRosterApp() {
             display: inline !important;
         }
         .app-table-container.is-scrolled .print-hide-badges {
-            display: none !important; /* Hide badges when condensed to save space */
+            display: none !important; 
         }
         .app-table-container.is-scrolled .gantt-site-col {
             width: 80px !important;
             min-width: 80px !important;
             max-width: 80px !important;
-            padding: 10px 8px !important; /* Tightens the padding further when abbreviated */
+            padding: 10px 8px !important; 
         }
         /* ------------------------------------------------------------------ */
 
@@ -128,7 +126,6 @@ function renderRosterApp() {
             filter: brightness(1.1);
         }
         
-        /* Modifiers */
         .camper-block.checked-in {
             border: 2px solid #2ecc71;
             background-color: #374151;
@@ -171,7 +168,6 @@ function renderRosterApp() {
             align-items: center;
         }
         
-        /* Interactive Elements inside block */
         .block-actions {
             display: flex;
             align-items: center;
@@ -209,7 +205,6 @@ function renderRosterApp() {
             transform: scale(1.2);
         }
 
-        /* Empty Cells */
         .empty-cell {
             cursor: pointer;
             transition: background-color 0.2s;
@@ -229,7 +224,6 @@ function renderRosterApp() {
             opacity: 1;
         }
 
-        /* Large Centered Host Watermark */
         .host-watermark {
             position: absolute;
             top: 50%;
@@ -365,7 +359,6 @@ function renderRosterApp() {
         .dr-day.selected.range-start { border-top-right-radius: 0 !important; border-bottom-right-radius: 0 !important; }
         .dr-day.selected.range-end { border-top-left-radius: 0 !important; border-bottom-left-radius: 0 !important; }
         
-        /* Checkbox list style */
         .bulk-site-item {
             display: flex;
             align-items: center;
@@ -382,7 +375,6 @@ function renderRosterApp() {
             background: rgba(52, 152, 219, 0.1);
         }
 
-        /* Checkbox injected via JS defaults to hidden on screen */
         .print-checkbox {
             display: none;
         }
@@ -449,7 +441,6 @@ function renderRosterApp() {
             .gantt-site-col strong {
                 font-size: 0.85rem !important;
             }
-            /* --------------------------------- */
 
             .camper-block {
                 padding: 2px 4px !important;
@@ -478,14 +469,12 @@ function renderRosterApp() {
                 flex-wrap: wrap; 
             }
 
-            /* Un-grid Modals to Stack Vertically */
             .responsive-grid {
                 display: flex !important;
                 flex-direction: column !important;
                 align-items: stretch !important;
             }
 
-            /* Date Picker Mobile Adjustments */
             .dr-container {
                 flex-direction: column;
             }
@@ -502,13 +491,11 @@ function renderRosterApp() {
                 border-right: 1px solid var(--border-color);
             }
             
-            /* Hide the second calendar on mobile to prevent squishing */
             #dr-month-2-label, 
             .dr-month:nth-child(2) {
                 display: none !important;
             }
             
-            /* Fix Tabs text size */
             .sc-tab-btn {
                 font-size: 0.85rem !important;
                 padding: 10px 5px !important;
@@ -519,7 +506,6 @@ function renderRosterApp() {
         @media print {
             @page { size: portrait; margin: 0.3in; }
             
-            /* Unbind application viewport scrolling limitations entirely */
             html, body, #app-container, .app-table-container, #roster-table {
                 overflow: visible !important;
                 overflow-x: visible !important;
@@ -544,12 +530,10 @@ function renderRosterApp() {
                 color: #000000 !important; 
             }
             
-            /* Hide the UI controls so only the plain table prints */
             #global-header, #bento-menu, #roster-header, #roster-controls, #sidebar, header, .app-header, dialog, button, select, input { 
                 display: none !important; 
             }
 
-            /* Hide hookup badges when printing */
             .print-hide-badges {
                 display: none !important;
             }
@@ -564,16 +548,14 @@ function renderRosterApp() {
             .gantt-table { 
                 width: 100% !important; 
                 border-collapse: collapse !important; 
-                min-width: 100% !important; /* Force to exact paper width */
-                table-layout: fixed !important; /* Forces dates to scale and fit evenly */
+                min-width: 100% !important; 
+                table-layout: fixed !important; 
             }
 
-            /* Disable sticky positioning in print to prevent the floating ghost header bug */
             #roster-thead th, .gantt-site-col {
                 position: static !important;
             }
             
-            /* Remove min-width on dates so the printer can scale them freely to fit the page */
             .gantt-table th:not(.gantt-site-col), 
             .gantt-table td:not(.gantt-site-col) {
                 width: auto !important;
@@ -581,11 +563,10 @@ function renderRosterApp() {
                 max-width: none !important;
             }
             
-            /* Force cell heights down slightly to 75px to fit 11 perfectly per page */
             .gantt-table th, .gantt-table td, .gantt-site-col { 
                 background: #ffffff !important; 
                 color: #000000 !important; 
-                border: 1px solid #aaaaaa !important; /* Crisp, thin lines for paper grid */
+                border: 1px solid #aaaaaa !important; 
                 page-break-inside: avoid;
                 height: 75px !important; 
                 max-height: 75px !important; 
@@ -599,10 +580,10 @@ function renderRosterApp() {
             }
             
             .gantt-site-col {
-                width: 160px !important; /* Slightly smaller to give dates room */
-                min-width: 160px !important;
-                max-width: 160px !important;
-                white-space: normal !important; /* Text wrapping allowed */
+                width: 180px !important; 
+                min-width: 180px !important;
+                max-width: 180px !important;
+                white-space: normal !important; 
                 word-wrap: break-word !important;
                 font-weight: bold !important;
                 border-right: 2px solid #aaaaaa !important;
@@ -610,7 +591,6 @@ function renderRosterApp() {
                 overflow: visible !important;
             }
             
-            /* Override the wrapper to allow wrapping and expand the full name */
             .site-name-wrapper {
                 white-space: normal !important;
                 word-wrap: break-word !important;
@@ -623,7 +603,6 @@ function renderRosterApp() {
                 display: none !important; 
             }
             
-            /* The actual reservations get thick borders and slightly rounded corners */
             .camper-block { 
                 background: #ffffff !important; 
                 color: #000000 !important; 
@@ -918,8 +897,9 @@ function renderRosterApp() {
             <div class="modal-body" style="max-height: 75vh; overflow-y: auto;">
                 
                 <div class="sc-tabs">
-                    <button class="sc-tab-btn active" data-target="sc-tab-single">Single Site Edit</button>
-                    <button class="sc-tab-btn" data-target="sc-tab-bulk">Bulk Loop Assign</button>
+                    <button class="sc-tab-btn active" data-target="sc-tab-single">Single Site</button>
+                    <button class="sc-tab-btn" data-target="sc-tab-bulk">Bulk Assign</button>
+                    <button class="sc-tab-btn" data-target="sc-tab-loops">Manage Loops</button>
                 </div>
 
                 <div id="sc-tab-single" class="sc-tab-content active">
@@ -936,13 +916,7 @@ function renderRosterApp() {
                     <div class="responsive-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
                         <div>
                             <label style="font-weight: bold; font-size: 0.9rem;">Loop Assignment</label>
-                            <select id="sc-loop" class="app-select">
-                                <option value="Unassigned">Unassigned</option>
-                                <option value="Appaloosa (A)">Appaloosa (A)</option>
-                                <option value="Bitterroot (B)">Bitterroot (B)</option>
-                                <option value="Camas (C)">Camas (C)</option>
-                                <option value="Other">Other / Overflow</option>
-                            </select>
+                            <select id="sc-loop" class="app-select"></select>
                         </div>
                         <div>
                             <label style="font-weight: bold; font-size: 0.9rem;">Max Length (ft)</label>
@@ -1004,16 +978,23 @@ function renderRosterApp() {
                     <div class="responsive-grid flex-stack" style="display: flex; gap: 10px; align-items: flex-end;">
                         <div style="flex: 1; width: 100%;">
                             <label style="font-size: 0.85rem; font-weight: bold; display: block; margin-bottom: 5px;">Assign Selected To:</label>
-                            <select id="sc-bulk-loop" class="app-select" style="margin-bottom: 0; width: 100%;">
-                                <option value="Appaloosa (A)">Appaloosa (A)</option>
-                                <option value="Bitterroot (B)">Bitterroot (B)</option>
-                                <option value="Camas (C)">Camas (C)</option>
-                                <option value="Other">Other / Overflow</option>
-                                <option value="Unassigned">Unassigned</option>
-                            </select>
+                            <select id="sc-bulk-loop" class="app-select" style="margin-bottom: 0; width: 100%;"></select>
                         </div>
                         <button id="btn-sc-bulk-apply" class="btn-primary" style="flex: 1; width: 100%; background-color: var(--accent-primary);">Run Bulk Update</button>
                     </div>
+                </div>
+
+                <div id="sc-tab-loops" class="sc-tab-content">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 15px;">
+                        <div>
+                            <h4 style="margin-bottom: 5px; color: var(--accent-primary);">Loop Management</h4>
+                            <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0;">Add, rename, or remove loops.</p>
+                        </div>
+                        <button id="btn-add-new-loop" class="btn-primary" style="margin: 0; padding: 8px 15px;">+ Add Loop</button>
+                    </div>
+                    
+                    <div id="lm-loop-list" style="max-height: 350px; overflow-y: auto;">
+                        </div>
                 </div>
 
             </div>

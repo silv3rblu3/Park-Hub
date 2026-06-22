@@ -12,7 +12,6 @@ window.dpViewMonth.setDate(1);
 window.dpTempStart = null;
 window.dpTempEnd = null;
 
-// --- Helper function to dynamically abbreviate names (e.g. "Appaloosa 01" -> "A 01") ---
 function getShortSiteName(siteName) {
     if (!siteName) return '';
     let clean = siteName.replace(/Double Site/ig, 'DS').replace(/ - /g, ' ');
@@ -50,6 +49,11 @@ function initRosterLogic() {
         state.apps.roster.lastPurge = Date.now();
     }
 
+    // --- NEW: Initialize dynamic custom loops if they don't exist ---
+    if (!state.apps.roster.customLoops || !Array.isArray(state.apps.roster.customLoops)) {
+        state.apps.roster.customLoops = ['Appaloosa (A)', 'Bitterroot (B)', 'Camas (C)', 'Other'];
+    }
+
     const patchUID = (arr) => {
         arr.forEach(c => {
             const cleanSite = c.site ? c.site.replace(/\s/g, '') : 'UnknownSite';
@@ -76,13 +80,12 @@ function initRosterLogic() {
     StateManager.saveGlobalState(state);
 
     runLifecycleManager();
+    updateConfigDropdowns(); // Populate the loops dynamically
     processSyncManifest();
     populateLoopFilter();
     bindRosterEvents();
     renderRosterCalendar();
     
-    // --- Bulletproof Mobile Scroll Tracker ---
-    // Instead of relying on events that Safari pauses, we tie it to the screen's refresh rate
     function monitorScroll() {
         const tc = document.querySelector('.app-table-container');
         if (tc) {
@@ -95,6 +98,99 @@ function initRosterLogic() {
         requestAnimationFrame(monitorScroll);
     }
     requestAnimationFrame(monitorScroll);
+}
+
+// --- NEW: Dynamic Loop Manager Logic ---
+function updateConfigDropdowns() {
+    const state = StateManager.loadGlobalState();
+    const loops = state.apps.roster.customLoops || [];
+    
+    const scLoop = document.getElementById('sc-loop');
+    const bulkLoop = document.getElementById('sc-bulk-loop');
+    
+    if (!scLoop || !bulkLoop) return;
+
+    let html = '<option value="Unassigned">Unassigned</option>';
+    loops.forEach(l => {
+        html += `<option value="${l}">${l}</option>`;
+    });
+    
+    scLoop.innerHTML = html;
+    bulkLoop.innerHTML = html;
+
+    renderLoopManagerList();
+}
+
+function renderLoopManagerList() {
+    const state = StateManager.loadGlobalState();
+    const loops = state.apps.roster.customLoops || [];
+    const container = document.getElementById('lm-loop-list');
+    
+    if (!container) return;
+
+    container.innerHTML = '';
+    loops.forEach(loop => {
+        container.innerHTML += `
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border: 1px solid var(--border-color); border-radius: var(--radius-md); margin-bottom: 10px; background: rgba(0,0,0,0.02);">
+                <strong style="font-size: 1.1rem;">${loop}</strong>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn-outline btn-edit-loop" data-loop="${loop}" style="padding: 5px 10px; margin: 0; font-size: 0.85rem;">✏️ Edit</button>
+                    <button class="btn-outline btn-delete-loop" data-loop="${loop}" style="padding: 5px 10px; margin: 0; font-size: 0.85rem; border-color: var(--danger-color); color: var(--danger-color);">🗑️ Delete</button>
+                </div>
+            </div>
+        `;
+    });
+
+    document.querySelectorAll('.btn-edit-loop').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const oldName = e.target.getAttribute('data-loop');
+            const newName = await DialogSystem.prompt("Rename Loop", `Enter new name for ${oldName}:`, oldName);
+            
+            if (newName && newName !== oldName && newName.trim() !== "") {
+                let st = StateManager.loadGlobalState();
+                let idx = st.apps.roster.customLoops.indexOf(oldName);
+                if (idx > -1) {
+                    st.apps.roster.customLoops[idx] = newName.trim();
+                    
+                    Object.keys(st.apps.roster.siteConfig).forEach(s => {
+                        if (st.apps.roster.siteConfig[s].loop === oldName) {
+                            st.apps.roster.siteConfig[s].loop = newName.trim();
+                        }
+                    });
+                    
+                    StateManager.saveGlobalState(st);
+                    updateConfigDropdowns();
+                    populateLoopFilter();
+                    renderRosterCalendar();
+                    NotificationSystem.show("Loop Renamed", "success");
+                }
+            }
+        });
+    });
+
+    document.querySelectorAll('.btn-delete-loop').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const loopName = e.target.getAttribute('data-loop');
+            const confirmed = await DialogSystem.confirm("Delete Loop?", `Are you sure you want to delete the loop "${loopName}"? Any sites inside this loop will be changed to 'Unassigned'.`);
+            
+            if (confirmed) {
+                let st = StateManager.loadGlobalState();
+                st.apps.roster.customLoops = st.apps.roster.customLoops.filter(l => l !== loopName);
+                
+                Object.keys(st.apps.roster.siteConfig).forEach(s => {
+                    if (st.apps.roster.siteConfig[s].loop === loopName) {
+                        st.apps.roster.siteConfig[s].loop = 'Unassigned';
+                    }
+                });
+                
+                StateManager.saveGlobalState(st);
+                updateConfigDropdowns();
+                populateLoopFilter();
+                renderRosterCalendar();
+                NotificationSystem.show("Loop Deleted", "success");
+            }
+        });
+    });
 }
 
 function runLifecycleManager() {
@@ -142,6 +238,12 @@ function processSyncManifest() {
     const incomingData = state.apps.roster.manifest;
     let roster = state.apps.roster;
 
+    // --- CRITICAL FIX: Build a manifest of ONLY the sites included in the import file ---
+    const incomingSites = new Set();
+    incomingData.forEach(inc => {
+        if (inc.site) incomingSites.add(inc.site);
+    });
+
     if (state.apps.roster.manifestMeta && state.apps.roster.manifestMeta.sites) {
         state.apps.roster.manifestMeta.sites.forEach(s => {
             if (!roster.siteConfig[s.site]) {
@@ -188,8 +290,11 @@ function processSyncManifest() {
         for (let i = roster.active.length - 1; i >= 0; i--) {
             let localCamper = roster.active[i];
             
-            if (localCamper.id.startsWith('WALKIN-')) {
-                continue;
+            if (localCamper.id.startsWith('WALKIN-')) continue;
+
+            // --- CRITICAL FIX: If the imported JSON does not contain data for this site, skip it. Do not wipe it. ---
+            if (!incomingSites.has(localCamper.site)) {
+                continue; 
             }
 
             const localParsed = parseRosterDates(localCamper.dates);
@@ -229,28 +334,15 @@ function processSyncManifest() {
     }
 
     incomingData.forEach(incoming => {
-        
-        if (!incoming.site || !incoming.dates || !incoming.id) {
-            return;
-        }
+        if (!incoming.site || !incoming.dates || !incoming.id) return;
 
         if (!roster.siteConfig[incoming.site]) {
             roster.siteConfig[incoming.site] = { 
-                loop: 'Unassigned', 
-                length: '', 
-                amps: 'None', 
-                water: false, 
-                sewer: false, 
-                isADA: incoming.isADA || false, 
-                isHost: incoming.isHost || false 
+                loop: 'Unassigned', length: '', amps: 'None', water: false, sewer: false, isADA: incoming.isADA || false, isHost: incoming.isHost || false 
             };
         } else {
-            if (incoming.isADA) {
-                roster.siteConfig[incoming.site].isADA = true;
-            }
-            if (incoming.isHost) {
-                roster.siteConfig[incoming.site].isHost = true;
-            }
+            if (incoming.isADA) roster.siteConfig[incoming.site].isADA = true;
+            if (incoming.isHost) roster.siteConfig[incoming.site].isHost = true;
         }
 
         let incomingUID = incoming.id + '-' + incoming.site.replace(/\s/g, '') + '-' + incoming.dates.replace(/\s/g, '');
@@ -259,12 +351,9 @@ function processSyncManifest() {
         const existsHistory = roster.history.find(c => c.uid === incomingUID);
         const existsArchive = roster.archive.find(c => c.uid === incomingUID);
 
-        if (existsActive || existsHistory || existsArchive) {
-            return; 
-        }
+        if (existsActive || existsHistory || existsArchive) return; 
 
         let initStatus = 'Pending';
-        
         const isIncomingBlock = incoming.id.startsWith('BLOCKED-');
 
         if (isIncomingBlock) {
@@ -295,10 +384,11 @@ function processSyncManifest() {
 function populateLoopFilter() {
     const state = StateManager.loadGlobalState();
     const roster = state.apps.roster;
+    const customLoops = state.apps.roster.customLoops || [];
     const select = document.getElementById('filter-loop');
     const currentVal = select.value;
 
-    let loops = new Set();
+    let loops = new Set(customLoops);
     
     Object.values(roster.siteConfig).forEach(config => {
         if (config.loop && config.loop !== "Unassigned") {
@@ -395,13 +485,8 @@ function renderRosterCalendar() {
     let currentDate = new Date(window.rosterViewStart);
     let daysToRender = Math.round((window.rosterViewEnd - window.rosterViewStart) / (1000 * 60 * 60 * 24)) + 1;
     
-    if (daysToRender < 1) {
-        daysToRender = 1;
-    }
-    
-    if (daysToRender > 60) {
-        daysToRender = 60; 
-    }
+    if (daysToRender < 1) daysToRender = 1;
+    if (daysToRender > 60) daysToRender = 60; 
 
     for (let i = 0; i < daysToRender; i++) {
         let d = new Date(currentDate);
@@ -424,14 +509,8 @@ function renderRosterCalendar() {
     thead.appendChild(trHead);
 
     let allSites = new Set();
-    
-    Object.keys(roster.siteConfig).forEach(s => {
-        allSites.add(s);
-    });
-    
-    roster.active.forEach(c => {
-        allSites.add(c.site);
-    });
+    Object.keys(roster.siteConfig).forEach(s => allSites.add(s));
+    roster.active.forEach(c => allSites.add(c.site));
     
     let siteArray = Array.from(allSites).map(site => {
         const config = roster.siteConfig[site] || { loop: 'Unassigned', length: '', amps: 'None', water: false, sewer: false, isADA: false, isHost: false };
@@ -463,38 +542,20 @@ function renderRosterCalendar() {
 
         const tr = document.createElement('tr');
         
-        // --- Injected the Full Name vs Short Name HTML Elements ---
         let siteDisplay = `<div class="site-name-wrapper" style="font-size: 1.1rem; white-space: nowrap; overflow: hidden; display: flex; align-items: center;">
             <strong class="site-full-name">${siteData.site}</strong>
             <strong class="site-short-name">${getShortSiteName(siteData.site)}</strong>`;
         
-        if (siteData.isADA) {
-            siteDisplay += ` <span style="color: #3498db; margin-left: 5px;" title="ADA Accessible">♿</span>`;
-        }
-        
-        if (siteData.isHost) {
-            siteDisplay += ` <span style="color: #2ecc71; margin-left: 5px;" title="Camp Host">🏕️</span>`;
-        }
+        if (siteData.isADA) siteDisplay += ` <span style="color: #3498db; margin-left: 5px;" title="ADA Accessible">♿</span>`;
+        if (siteData.isHost) siteDisplay += ` <span style="color: #2ecc71; margin-left: 5px;" title="Camp Host">🏕️</span>`;
         
         siteDisplay += `</div>`;
 
         let badges = [];
-        
-        if (siteData.length) {
-            badges.push(`<span style="font-size: 0.75rem; background: rgba(0,0,0,0.1); padding: 1px 3px; border-radius: 3px;">${siteData.length}ft</span>`);
-        }
-        
-        if (siteData.amps && siteData.amps !== 'None') {
-            badges.push(`<span style="font-size: 0.75rem; background: rgba(241, 196, 15, 0.2); border: 1px solid #f1c40f; padding: 1px 3px; border-radius: 3px; color: #d35400;">⚡ ${siteData.amps}</span>`);
-        }
-        
-        if (siteData.water) {
-            badges.push(`<span style="font-size: 0.75rem; background: rgba(52, 152, 219, 0.2); border: 1px solid #3498db; padding: 1px 3px; border-radius: 3px; color: #2980b9;">💧</span>`);
-        }
-        
-        if (siteData.sewer) {
-            badges.push(`<span style="font-size: 0.75rem; background: rgba(142, 68, 173, 0.2); border: 1px solid #8e44ad; padding: 1px 3px; border-radius: 3px; color: #8e44ad;">🕳️</span>`);
-        }
+        if (siteData.length) badges.push(`<span style="font-size: 0.75rem; background: rgba(0,0,0,0.1); padding: 1px 3px; border-radius: 3px;">${siteData.length}ft</span>`);
+        if (siteData.amps && siteData.amps !== 'None') badges.push(`<span style="font-size: 0.75rem; background: rgba(241, 196, 15, 0.2); border: 1px solid #f1c40f; padding: 1px 3px; border-radius: 3px; color: #d35400;">⚡ ${siteData.amps}</span>`);
+        if (siteData.water) badges.push(`<span style="font-size: 0.75rem; background: rgba(52, 152, 219, 0.2); border: 1px solid #3498db; padding: 1px 3px; border-radius: 3px; color: #2980b9;">💧</span>`);
+        if (siteData.sewer) badges.push(`<span style="font-size: 0.75rem; background: rgba(142, 68, 173, 0.2); border: 1px solid #8e44ad; padding: 1px 3px; border-radius: 3px; color: #8e44ad;">🕳️</span>`);
         
         if (badges.length > 0) {
             siteDisplay += `<div class="print-hide-badges" style="display: flex; gap: 4px; margin-top: 5px;">${badges.join('')}</div>`;
@@ -512,10 +573,7 @@ function renderRosterCalendar() {
             const currentDay = viewDates[i];
             
             const camper = roster.active.find(c => {
-                if (c.site !== siteData.site) {
-                    return false;
-                }
-                
+                if (c.site !== siteData.site) return false;
                 const parsed = parseRosterDates(c.dates);
                 return currentDay.getTime() >= parsed.start.getTime() && currentDay.getTime() < parsed.end.getTime();
             });
@@ -531,48 +589,35 @@ function renderRosterCalendar() {
                 }
 
                 let blockClass = 'camper-block';
-                let isCheckedClass = '';
+                let isCheckedClass = camper.status === 'Checked-In' ? 'is-checked' : '';
                 let statusIcon = '⏳';
                 
-                if (camper.status === 'Checked-In') {
-                    blockClass += ' checked-in';
-                    isCheckedClass = 'is-checked';
-                    statusIcon = '✅';
-                }
-                if (camper.status === 'Departed') {
-                    blockClass += ' departed';
-                    statusIcon = '👋';
-                }
-                if (camper.isTrouble) {
-                    blockClass += ' trouble';
-                }
-                if (camper.status === 'Closed') {
-                    blockClass += ' closed';
-                }
+                if (camper.status === 'Checked-In') { blockClass += ' checked-in'; statusIcon = '✅'; }
+                if (camper.status === 'Departed') { blockClass += ' departed'; statusIcon = '👋'; }
+                if (camper.isTrouble) { blockClass += ' trouble'; }
+                if (camper.status === 'Closed') { blockClass += ' closed'; }
 
-                let hasNote = false;
-                if (camper.notes && camper.notes.trim() !== '') {
-                    hasNote = true;
-                }
-                
+                let hasNote = (camper.notes && camper.notes.trim() !== '');
                 let noteClass = hasNote ? 'note-telltale has-note' : 'note-telltale no-note';
 
                 let extras = [];
-                if (camper.extraVehicles && camper.extraVehicles > 0) {
-                    extras.push(`🚗 ${camper.extraVehicles}`);
-                }
-                if (camper.atvCount && camper.atvCount > 0) {
-                    extras.push(`🏍️ ${camper.atvCount}`);
-                }
+                if (camper.extraVehicles && camper.extraVehicles > 0) extras.push(`🚗 ${camper.extraVehicles}`);
+                if (camper.atvCount && camper.atvCount > 0) extras.push(`🏍️ ${camper.atvCount}`);
                 
-                let extrasHtml = '';
-                if (extras.length > 0) {
-                    extrasHtml = `<span class="screen-extras" style="font-size: 0.75rem; background: rgba(0,0,0,0.2); padding: 2px 4px; border-radius: 3px; margin-left: 5px;">${extras.join(' | ')}</span>`;
-                }
+                let extrasHtml = extras.length > 0 ? `<span class="screen-extras" style="font-size: 0.75rem; background: rgba(0,0,0,0.2); padding: 2px 4px; border-radius: 3px; margin-left: 5px;">${extras.join(' | ')}</span>` : '';
 
                 let pVeh = camper.extraVehicles && camper.extraVehicles > 0 ? camper.extraVehicles : '___';
                 let pAtv = camper.atvCount && camper.atvCount > 0 ? camper.atvCount : '___';
                 let printExtrasHtml = `<div class="print-extras" style="display: none; font-size: 0.8rem; margin-top: 4px; color: #000;">🚗 ${pVeh} &nbsp;|&nbsp; 🏍️ ${pAtv}</div>`;
+
+                // --- CRITICAL FIX: If the box is 1-day tiny, slice off the first name dynamically ---
+                let finalDisplayName = camper.name;
+                if (span === 1) {
+                    let nameParts = camper.name.trim().split(' ');
+                    if (nameParts.length > 1) {
+                        finalDisplayName = nameParts[nameParts.length - 1]; 
+                    }
+                }
 
                 const td = document.createElement('td');
                 td.colSpan = span;
@@ -581,7 +626,7 @@ function renderRosterCalendar() {
                     td.innerHTML = `
                         <div class="${blockClass}" data-id="${camper.uid}">
                             ${hostWatermark}
-                            <strong>${camper.name}</strong>
+                            <strong>${finalDisplayName}</strong>
                             <div style="font-size: 0.8rem; margin-top: 5px;">${camper.dates}</div>
                         </div>
                     `;
@@ -590,7 +635,7 @@ function renderRosterCalendar() {
                         <div class="${blockClass}" data-id="${camper.uid}">
                             ${hostWatermark}
                             <div class="block-header">
-                                <span class="block-name"><span class="print-checkbox ${isCheckedClass}"></span>${camper.name}${hostMarker}</span>
+                                <span class="block-name"><span class="print-checkbox ${isCheckedClass}"></span>${finalDisplayName}${hostMarker}</span>
                                 <span class="${noteClass}" data-note-id="${camper.uid}" title="Notes">📝</span>
                             </div>
                             <div class="block-actions">
@@ -800,9 +845,7 @@ function bindRosterEvents() {
             
             e.target.classList.add('active');
 
-            if (range === 'custom') {
-                return; 
-            }
+            if (range === 'custom') return; 
 
             let start = new Date();
             let end = new Date();
@@ -860,9 +903,7 @@ function bindRosterEvents() {
         
         const nightsStr = await DialogSystem.prompt("Add Walk-In", `How many nights are they staying at site ${site}?`, "1");
         
-        if (!nightsStr) {
-            return;
-        }
+        if (!nightsStr) return;
         
         const nights = parseInt(nightsStr);
         if (isNaN(nights) || nights < 1) {
@@ -1041,13 +1082,9 @@ function bindRosterEvents() {
                         let state = StateManager.loadGlobalState();
                         
                         state.apps.roster.manifest = importedData.manifest;
-                        
-                        if (importedData.meta) {
-                            state.apps.roster.manifestMeta = importedData.meta;
-                        }
+                        if (importedData.meta) state.apps.roster.manifestMeta = importedData.meta;
 
                         StateManager.saveGlobalState(state);
-
                         NotificationSystem.show("Roster Sync Complete!", "success");
                         processSyncManifest();
                         populateLoopFilter();
@@ -1068,13 +1105,11 @@ function bindRosterEvents() {
     });
 
     document.getElementById('file-roster-import').addEventListener('change', async (e) => {
-        if (e.target.files.length === 0) {
-            return;
-        }
+        if (e.target.files.length === 0) return;
         
         const file = e.target.files[0];
+        const confirmed = await DialogSystem.confirm(`Merge File?`, `This will parse and safely merge the selected JSON roster file. Proceed?`);
         
-        const confirmed = await DialogSystem.confirm(`Merge File?`, `This will parse and merge the selected JSON roster file. Proceed?`);
         if (!confirmed) {
             e.target.value = '';
             return;
@@ -1084,20 +1119,13 @@ function bindRosterEvents() {
         reader.onload = (event) => {
             try {
                 const importedData = JSON.parse(event.target.result);
-                
-                if (!importedData.manifest) {
-                    throw new Error("Invalid PMH Roster Format");
-                }
+                if (!importedData.manifest) throw new Error("Invalid PMH Roster Format");
                 
                 let state = StateManager.loadGlobalState();
                 state.apps.roster.manifest = importedData.manifest;
-                
-                if (importedData.meta) {
-                    state.apps.roster.manifestMeta = importedData.meta;
-                }
+                if (importedData.meta) state.apps.roster.manifestMeta = importedData.meta;
 
                 StateManager.saveGlobalState(state);
-
                 NotificationSystem.show("File Merged Successfully", "success");
                 processSyncManifest();
                 populateLoopFilter();
@@ -1115,9 +1143,7 @@ function bindRosterEvents() {
     
     document.getElementById('btn-ev-minus').addEventListener('click', () => {
         let val = parseInt(evInput.value) || 0;
-        if (val > 0) {
-            val--;
-        }
+        if (val > 0) val--;
         evInput.value = val;
         evDisplay.innerText = val;
     });
@@ -1134,9 +1160,7 @@ function bindRosterEvents() {
     
     document.getElementById('btn-atv-minus').addEventListener('click', () => {
         let val = parseInt(atvInput.value) || 0;
-        if (val > 0) {
-            val--;
-        }
+        if (val > 0) val--;
         atvInput.value = val;
         atvDisplay.innerText = val;
     });
@@ -1170,9 +1194,7 @@ function bindRosterEvents() {
             camper.isArchived = document.getElementById('cm-archive').checked;
             
             StateManager.saveGlobalState(state);
-            
             runLifecycleManager();
-            
             renderRosterCalendar();
             camperModal.close();
             NotificationSystem.show("Record Updated", "success");
@@ -1187,13 +1209,8 @@ function bindRosterEvents() {
         const roster = state.apps.roster;
         let allSites = new Set();
         
-        Object.keys(roster.siteConfig).forEach(s => {
-            allSites.add(s);
-        });
-        
-        roster.active.forEach(c => {
-            allSites.add(c.site);
-        });
+        Object.keys(roster.siteConfig).forEach(s => allSites.add(s));
+        roster.active.forEach(c => allSites.add(c.site));
         
         siteSelect.innerHTML = '';
         
@@ -1204,7 +1221,6 @@ function bindRosterEvents() {
         
         sortedSites.forEach(site => {
             siteSelect.innerHTML += `<option value="${site}">${site}</option>`;
-            
             bulkList.innerHTML += `
                 <label class="bulk-site-item">
                     <input type="checkbox" class="bulk-site-cb" value="${site}">
@@ -1213,7 +1229,6 @@ function bindRosterEvents() {
             `;
         });
         
-        // --- SHIFT-CLICK MULTI-SELECT LOGIC ---
         let lastChecked = null;
         const checkboxes = document.querySelectorAll('.bulk-site-cb');
         
@@ -1223,17 +1238,14 @@ function bindRosterEvents() {
                     lastChecked = this;
                     return;
                 }
-                
                 if (e.shiftKey) {
                     let start = Array.from(checkboxes).indexOf(this);
                     let end = Array.from(checkboxes).indexOf(lastChecked);
                     let range = [start, end].sort((a, b) => a - b);
-                    
                     for (let i = range[0]; i <= range[1]; i++) {
                         checkboxes[i].checked = lastChecked.checked; 
                     }
                 }
-                
                 lastChecked = this;
             });
         });
@@ -1247,7 +1259,6 @@ function bindRosterEvents() {
         populateSiteDropdown();
         siteModal.showModal();
         
-        // Reset tabs to default Single Site view when opening modal
         document.querySelectorAll('.sc-tab-btn').forEach(b => b.classList.remove('active'));
         document.querySelectorAll('.sc-tab-content').forEach(c => {
             c.classList.remove('active');
@@ -1259,7 +1270,6 @@ function bindRosterEvents() {
         singleTab.style.display = 'block';
     });
     
-    // --- TABS LOGIC BINDING ---
     document.querySelectorAll('.sc-tab-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             document.querySelectorAll('.sc-tab-btn').forEach(b => b.classList.remove('active'));
@@ -1276,24 +1286,35 @@ function bindRosterEvents() {
         });
     });
 
+    // --- NEW: Add Loop Button Hook ---
+    document.getElementById('btn-add-new-loop').addEventListener('click', async () => {
+        const newName = await DialogSystem.prompt("Add Loop", "Enter the exact name of the new loop:");
+        if (newName && newName.trim() !== "") {
+            let st = StateManager.loadGlobalState();
+            if (!st.apps.roster.customLoops) st.apps.roster.customLoops = [];
+            
+            if (!st.apps.roster.customLoops.includes(newName.trim())) {
+                st.apps.roster.customLoops.push(newName.trim());
+                StateManager.saveGlobalState(st);
+                updateConfigDropdowns();
+                populateLoopFilter();
+                NotificationSystem.show("Loop Added Successfully", "success");
+            } else {
+                DialogSystem.alert("Error", "That loop already exists.");
+            }
+        }
+    });
+
     document.getElementById('btn-sc-add-new').addEventListener('click', async () => {
         const newSite = await DialogSystem.prompt("Add New Site", "Enter the exact physical Site Number/Name:");
         
-        if (!newSite) {
-            return;
-        }
+        if (!newSite) return;
 
         let state = StateManager.loadGlobalState();
         
         if (!state.apps.roster.siteConfig[newSite]) {
             state.apps.roster.siteConfig[newSite] = { 
-                loop: 'Unassigned', 
-                length: '', 
-                amps: 'None', 
-                water: false, 
-                sewer: false, 
-                isADA: false, 
-                isHost: false 
+                loop: 'Unassigned', length: '', amps: 'None', water: false, sewer: false, isADA: false, isHost: false 
             };
             
             StateManager.saveGlobalState(state);
@@ -1309,13 +1330,7 @@ function bindRosterEvents() {
     siteSelect.addEventListener('change', (e) => {
         const state = StateManager.loadGlobalState();
         const config = state.apps.roster.siteConfig[e.target.value] || { 
-            loop: 'Unassigned', 
-            length: '', 
-            amps: 'None', 
-            water: false, 
-            sewer: false, 
-            isADA: false, 
-            isHost: false 
+            loop: 'Unassigned', length: '', amps: 'None', water: false, sewer: false, isADA: false, isHost: false 
         };
         
         document.getElementById('sc-loop').value = config.loop || 'Unassigned';
@@ -1333,10 +1348,7 @@ function bindRosterEvents() {
 
     document.getElementById('btn-sc-save').addEventListener('click', () => {
         const site = siteSelect.value;
-        
-        if (!site) {
-            return;
-        }
+        if (!site) return;
 
         let state = StateManager.loadGlobalState();
         
@@ -1359,15 +1371,11 @@ function bindRosterEvents() {
     });
 
     document.getElementById('btn-sc-sel-all').addEventListener('click', () => {
-        document.querySelectorAll('.bulk-site-cb').forEach(cb => {
-            cb.checked = true;
-        });
+        document.querySelectorAll('.bulk-site-cb').forEach(cb => cb.checked = true);
     });
     
     document.getElementById('btn-sc-sel-none').addEventListener('click', () => {
-        document.querySelectorAll('.bulk-site-cb').forEach(cb => {
-            cb.checked = false;
-        });
+        document.querySelectorAll('.bulk-site-cb').forEach(cb => cb.checked = false);
     });
 
     document.getElementById('btn-sc-bulk-apply').addEventListener('click', () => {
@@ -1384,14 +1392,7 @@ function bindRosterEvents() {
         checkedBoxes.forEach(cb => {
             const site = cb.value;
             if (!state.apps.roster.siteConfig[site]) {
-                state.apps.roster.siteConfig[site] = { 
-                    length: '', 
-                    amps: 'None', 
-                    water: false, 
-                    sewer: false, 
-                    isADA: false, 
-                    isHost: false 
-                };
+                state.apps.roster.siteConfig[site] = { length: '', amps: 'None', water: false, sewer: false, isADA: false, isHost: false };
             }
             state.apps.roster.siteConfig[site].loop = targetLoop;
             count++;
@@ -1408,7 +1409,7 @@ function bindRosterEvents() {
         const site = siteSelect.value;
         if (!site) return;
         
-        const confirmed = await DialogSystem.confirm("Delete Site?", `Are you sure you want to completely remove ${site} from the configuration? This will not delete active camper records, but the site will lose its loop and hookup data.`);
+        const confirmed = await DialogSystem.confirm("Delete Site?", `Are you sure you want to completely remove ${site} from the configuration?`);
         
         if (confirmed) {
             let state = StateManager.loadGlobalState();
@@ -1435,10 +1436,7 @@ function openCamperModal(uid) {
     const roster = state.apps.roster;
 
     let camper = roster.active.find(c => c.uid === uid) || roster.archive.find(c => c.uid === uid) || roster.history.find(c => c.uid === uid);
-    
-    if (!camper) {
-        return;
-    }
+    if (!camper) return;
 
     const siteConfig = roster.siteConfig[camper.site] || { loop: 'Unassigned' };
 
@@ -1447,15 +1445,11 @@ function openCamperModal(uid) {
     document.getElementById('cm-site').innerText = camper.site;
     document.getElementById('cm-loop').innerText = siteConfig.loop;
     document.getElementById('cm-dates').innerText = camper.dates;
-
     document.getElementById('cm-status').value = camper.status;
-    
     document.getElementById('cm-extra-veh').value = camper.extraVehicles || 0;
     document.getElementById('cm-extra-veh-display').innerText = camper.extraVehicles || 0;
-    
     document.getElementById('cm-atv').value = camper.atvCount || 0;
     document.getElementById('cm-atv-display').innerText = camper.atvCount || 0;
-
     document.getElementById('cm-trouble').checked = camper.isTrouble || false;
     document.getElementById('cm-notes').value = camper.notes || '';
     document.getElementById('cm-archive').checked = camper.isArchived || false;
