@@ -49,7 +49,6 @@ function initRosterLogic() {
         state.apps.roster.lastPurge = Date.now();
     }
 
-    // --- NEW: Initialize dynamic custom loops if they don't exist ---
     if (!state.apps.roster.customLoops || !Array.isArray(state.apps.roster.customLoops)) {
         state.apps.roster.customLoops = ['Appaloosa (A)', 'Bitterroot (B)', 'Camas (C)', 'Other'];
     }
@@ -70,6 +69,13 @@ function initRosterLogic() {
             if (c.atvCount === undefined) {
                 c.atvCount = 0;
             }
+            
+            if (c.evPaid === undefined) {
+                c.evPaid = false;
+            }
+            if (c.atvPaid === undefined) {
+                c.atvPaid = false;
+            }
         });
     };
 
@@ -80,7 +86,7 @@ function initRosterLogic() {
     StateManager.saveGlobalState(state);
 
     runLifecycleManager();
-    updateConfigDropdowns(); // Populate the loops dynamically
+    updateConfigDropdowns(); 
     processSyncManifest();
     populateLoopFilter();
     bindRosterEvents();
@@ -100,7 +106,6 @@ function initRosterLogic() {
     requestAnimationFrame(monitorScroll);
 }
 
-// --- NEW: Dynamic Loop Manager Logic ---
 function updateConfigDropdowns() {
     const state = StateManager.loadGlobalState();
     const loops = state.apps.roster.customLoops || [];
@@ -238,7 +243,6 @@ function processSyncManifest() {
     const incomingData = state.apps.roster.manifest;
     let roster = state.apps.roster;
 
-    // --- CRITICAL FIX: Build a manifest of ONLY the sites included in the import file ---
     const incomingSites = new Set();
     incomingData.forEach(inc => {
         if (inc.site) incomingSites.add(inc.site);
@@ -292,7 +296,6 @@ function processSyncManifest() {
             
             if (localCamper.id.startsWith('WALKIN-')) continue;
 
-            // --- CRITICAL FIX: If the imported JSON does not contain data for this site, skip it. Do not wipe it. ---
             if (!incomingSites.has(localCamper.site)) {
                 continue; 
             }
@@ -370,6 +373,8 @@ function processSyncManifest() {
             status: initStatus,
             extraVehicles: 0,
             atvCount: 0,
+            evPaid: false,  
+            atvPaid: false, 
             isTrouble: false,
             isArchived: false,
             notes: ''
@@ -600,17 +605,48 @@ function renderRosterCalendar() {
                 let hasNote = (camper.notes && camper.notes.trim() !== '');
                 let noteClass = hasNote ? 'note-telltale has-note' : 'note-telltale no-note';
 
-                let extras = [];
-                if (camper.extraVehicles && camper.extraVehicles > 0) extras.push(`🚗 ${camper.extraVehicles}`);
-                if (camper.atvCount && camper.atvCount > 0) extras.push(`🏍️ ${camper.atvCount}`);
+                // --- NEW: Inline Controls for the Calendar View ---
+                let extrasHtml = `<span class="screen-extras" style="display: inline-flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 3px; margin-left: 5px;">`;
                 
-                let extrasHtml = extras.length > 0 ? `<span class="screen-extras" style="font-size: 0.75rem; background: rgba(0,0,0,0.2); padding: 2px 4px; border-radius: 3px; margin-left: 5px;">${extras.join(' | ')}</span>` : '';
+                // Add Vehicle button + Paid Checkbox
+                let evChecked = camper.evPaid ? 'checked' : '';
+                extrasHtml += `
+                    <div style="display: flex; align-items: center; gap: 4px;">
+                        <button class="inline-add-ev" data-uid="${camper.uid}" style="background:none; border:none; cursor:pointer; padding:0; color: white; font-size:1.1rem; line-height: 1;" title="Add Extra Vehicle">🚗<span style="font-size:0.7rem; vertical-align:top;">+</span></button>
+                        <span style="font-weight:bold; font-size:0.9rem;">${camper.extraVehicles || 0}</span>
+                        <label style="font-size: 0.8rem; display: flex; align-items: center; gap: 2px; cursor: pointer; margin-left: 4px; margin-bottom: 0;">
+                            <strong>P</strong><input type="checkbox" class="inline-paid-ev" data-uid="${camper.uid}" ${evChecked} style="margin:0; transform: scale(1.1);">
+                        </label>
+                    </div>
+                `;
 
+                // If they have an ATV, expand the inline box to show it
+                if (camper.atvCount && camper.atvCount > 0) {
+                    let atvChecked = camper.atvPaid ? 'checked' : '';
+                    extrasHtml += `<div style="border-left: 1px solid rgba(255,255,255,0.3); height: 14px; margin: 0 2px;"></div>`;
+                    extrasHtml += `
+                    <div style="display: flex; align-items: center; gap: 4px;">
+                        <span style="font-size:0.9rem;">🏍️</span>
+                        <span style="font-weight:bold; font-size:0.9rem;">${camper.atvCount}</span>
+                        <label style="font-size: 0.8rem; display: flex; align-items: center; gap: 2px; cursor: pointer; margin-left: 4px; margin-bottom: 0;">
+                            <strong>P</strong><input type="checkbox" class="inline-paid-atv" data-uid="${camper.uid}" ${atvChecked} style="margin:0; transform: scale(1.1);">
+                        </label>
+                    </div>`;
+                }
+                extrasHtml += `</span>`;
+
+               // --- NEW: Cleaned up Print View without the 'P' ---
                 let pVeh = camper.extraVehicles && camper.extraVehicles > 0 ? camper.extraVehicles : '___';
                 let pAtv = camper.atvCount && camper.atvCount > 0 ? camper.atvCount : '___';
-                let printExtrasHtml = `<div class="print-extras" style="display: none; font-size: 0.8rem; margin-top: 4px; color: #000;">🚗 ${pVeh} &nbsp;|&nbsp; 🏍️ ${pAtv}</div>`;
+                
+                let pVehCheck = camper.evPaid ? '☑' : '☐';
+                let pAtvCheck = camper.atvPaid ? '☑' : '☐';
 
-                // --- CRITICAL FIX: If the box is 1-day tiny, slice off the first name dynamically ---
+                let printExtrasHtml = `<div class="print-extras" style="display: none; font-size: 13px; margin-top: 4px; color: #000;">
+                    🚗 ${pVeh} <span style="font-size: 15px;">${pVehCheck}</span> &nbsp;|&nbsp; 
+                    🏍️ ${pAtv} <span style="font-size: 15px;">${pAtvCheck}</span>
+                </div>`;
+
                 let finalDisplayName = camper.name;
                 if (span === 1) {
                     let nameParts = camper.name.trim().split(' ');
@@ -668,10 +704,45 @@ function renderRosterCalendar() {
 function attachGridInteractions() {
     document.querySelectorAll('.camper-block').forEach(block => {
         block.addEventListener('click', (e) => {
-            if (e.target.classList.contains('status-toggle-btn') || e.target.classList.contains('note-telltale')) {
+            // Prevent opening modal if they click any inline controls
+            if (e.target.closest('.inline-add-ev') || e.target.classList.contains('inline-paid-ev') || e.target.classList.contains('inline-paid-atv') || e.target.classList.contains('status-toggle-btn') || e.target.classList.contains('note-telltale')) {
                 return;
             }
             openCamperModal(block.getAttribute('data-id'));
+        });
+    });
+
+    // --- NEW: Inline Control Event Listeners ---
+    document.querySelectorAll('.inline-add-ev').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const uid = e.currentTarget.getAttribute('data-uid');
+            let state = StateManager.loadGlobalState();
+            let camper = state.apps.roster.active.find(c => c.uid === uid);
+            if (camper) {
+                camper.extraVehicles = (camper.extraVehicles || 0) + 1;
+                StateManager.saveGlobalState(state);
+                renderRosterCalendar(); 
+            }
+        });
+    });
+
+    document.querySelectorAll('.inline-paid-ev, .inline-paid-atv').forEach(cb => {
+        cb.addEventListener('click', e => e.stopPropagation()); // Stop modal from opening
+        cb.addEventListener('change', (e) => {
+            e.stopPropagation();
+            const uid = e.target.getAttribute('data-uid');
+            const isAtv = e.target.classList.contains('inline-paid-atv');
+            let state = StateManager.loadGlobalState();
+            let camper = state.apps.roster.active.find(c => c.uid === uid);
+            if (camper) {
+                if (isAtv) {
+                    camper.atvPaid = e.target.checked;
+                } else {
+                    camper.evPaid = e.target.checked;
+                }
+                StateManager.saveGlobalState(state);
+            }
         });
     });
 
@@ -803,6 +874,21 @@ function renderDualDatePicker() {
 }
 
 function bindRosterEvents() {
+    
+    const tableContainer = document.querySelector('.app-table-container');
+    if (tableContainer) {
+        const handleScroll = () => {
+            if (tableContainer.scrollLeft > 10) {
+                tableContainer.classList.add('is-scrolled');
+            } else {
+                tableContainer.classList.remove('is-scrolled');
+            }
+        };
+        
+        tableContainer.addEventListener('scroll', handleScroll, { passive: true });
+        tableContainer.addEventListener('touchmove', handleScroll, { passive: true });
+    }
+
     const dateModal = document.getElementById('date-range-modal');
     
     document.getElementById('btn-open-date-picker').addEventListener('click', () => {
@@ -845,7 +931,9 @@ function bindRosterEvents() {
             
             e.target.classList.add('active');
 
-            if (range === 'custom') return; 
+            if (range === 'custom') {
+                return; 
+            }
 
             let start = new Date();
             let end = new Date();
@@ -937,6 +1025,8 @@ function bindRosterEvents() {
             status: 'Checked-In', 
             extraVehicles: 0,
             atvCount: 0,
+            evPaid: false,
+            atvPaid: false,
             isTrouble: false,
             isArchived: false,
             notes: `Walk-in registration for ${nights} night(s).`
@@ -1189,6 +1279,10 @@ function bindRosterEvents() {
             camper.status = document.getElementById('cm-status').value;
             camper.extraVehicles = parseInt(document.getElementById('cm-extra-veh').value) || 0;
             camper.atvCount = parseInt(document.getElementById('cm-atv').value) || 0;
+            
+            camper.evPaid = document.getElementById('cm-ev-paid').checked;
+            camper.atvPaid = document.getElementById('cm-atv-paid').checked;
+            
             camper.isTrouble = document.getElementById('cm-trouble').checked;
             camper.notes = document.getElementById('cm-notes').value;
             camper.isArchived = document.getElementById('cm-archive').checked;
@@ -1286,7 +1380,6 @@ function bindRosterEvents() {
         });
     });
 
-    // --- NEW: Add Loop Button Hook ---
     document.getElementById('btn-add-new-loop').addEventListener('click', async () => {
         const newName = await DialogSystem.prompt("Add Loop", "Enter the exact name of the new loop:");
         if (newName && newName.trim() !== "") {
@@ -1445,11 +1538,17 @@ function openCamperModal(uid) {
     document.getElementById('cm-site').innerText = camper.site;
     document.getElementById('cm-loop').innerText = siteConfig.loop;
     document.getElementById('cm-dates').innerText = camper.dates;
+    
     document.getElementById('cm-status').value = camper.status;
+    
     document.getElementById('cm-extra-veh').value = camper.extraVehicles || 0;
     document.getElementById('cm-extra-veh-display').innerText = camper.extraVehicles || 0;
+    document.getElementById('cm-ev-paid').checked = camper.evPaid || false;
+    
     document.getElementById('cm-atv').value = camper.atvCount || 0;
     document.getElementById('cm-atv-display').innerText = camper.atvCount || 0;
+    document.getElementById('cm-atv-paid').checked = camper.atvPaid || false;
+    
     document.getElementById('cm-trouble').checked = camper.isTrouble || false;
     document.getElementById('cm-notes').value = camper.notes || '';
     document.getElementById('cm-archive').checked = camper.isArchived || false;

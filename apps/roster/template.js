@@ -12,13 +12,12 @@ function renderRosterApp() {
             position: relative;
         }
 
-        /* Gantt Calendar Styles - Fixed for Dynamic Expansion */
+        /* Gantt Calendar Styles - Perfect Dynamic Expansion */
         .gantt-table {
-            width: 100%;
+            width: 100% !important; /* Fill the screen if few dates are selected */
             border-collapse: separate; 
             border-spacing: 0;
-            table-layout: fixed; 
-            min-width: max-content; 
+            table-layout: auto !important; /* CRITICAL: 'auto' forces the browser to obey min-width */
         }
         
         .gantt-table th, .gantt-table td {
@@ -26,11 +25,11 @@ function renderRosterApp() {
             border-right: 1px solid var(--border-color);
         }
         
-        /* Dynamic Date Columns - Fills empty space, but stops shrinking at 150px */
+        /* Dynamic Date Columns - Fills empty space, but stops shrinking at your minimum */
         .gantt-table th:not(.gantt-site-col),
         .gantt-table td:not(.gantt-site-col) {
-            width: auto !important; 
-            min-width: 150px !important; 
+            width: 100% !important; /* Tricks the table into dividing space equally */
+            min-width: 150px !important; /* <--- TWEAK THIS NUMBER FOR PC/TABLET SWEET SPOT */
             max-width: none !important;
         }
 
@@ -419,7 +418,6 @@ function renderRosterApp() {
                 justify-content: center;
             }
 
-            /* --- ZOOM OUT EFFECT FOR MOBILE --- */
             .gantt-table th { 
                 font-size: 0.75rem !important; 
                 padding: 4px !important; 
@@ -428,8 +426,8 @@ function renderRosterApp() {
             /* Smaller date columns on phone */
             .gantt-table th:not(.gantt-site-col),
             .gantt-table td:not(.gantt-site-col) { 
-                width: auto !important; 
-                min-width: 100px !important; 
+                width: 100% !important; 
+                min-width: 100px !important; /* <--- TWEAK THIS NUMBER FOR MOBILE SWEET SPOT */
                 max-width: none !important; 
             }
             
@@ -502,7 +500,7 @@ function renderRosterApp() {
             }
         }
 
-        /* 🖨️ INK-SAVER PRINTING STYLES */
+        /* 🖨️ INK-SAVER PRINTING STYLES (SQUISHED/ZOOMED OUT VIEW) */
         @media print {
             @page { size: portrait; margin: 0.3in; }
             
@@ -545,6 +543,7 @@ function renderRosterApp() {
                 padding: 0 !important;
             }
             
+            /* Forces printer to lock column boundaries so dates fit the page */
             .gantt-table { 
                 width: 100% !important; 
                 border-collapse: collapse !important; 
@@ -552,6 +551,7 @@ function renderRosterApp() {
                 table-layout: fixed !important; 
             }
 
+            /* Un-stick the header and site details column to keep row items aligned on multiple pages */
             #roster-thead th, .gantt-site-col {
                 position: static !important;
             }
@@ -563,14 +563,16 @@ function renderRosterApp() {
                 max-width: none !important;
             }
             
+            /* --- Squish Rows & Lock Global 14px Font --- */
             .gantt-table th, .gantt-table td, .gantt-site-col { 
                 background: #ffffff !important; 
                 color: #000000 !important; 
                 border: 1px solid #aaaaaa !important; 
                 page-break-inside: avoid;
-                height: 75px !important; 
-                max-height: 75px !important; 
+                height: 55px !important; 
+                max-height: 55px !important; 
                 overflow: hidden !important;
+                font-size: 14px !important; 
             }
 
             .gantt-table th {
@@ -586,6 +588,7 @@ function renderRosterApp() {
                 white-space: normal !important; 
                 word-wrap: break-word !important;
                 font-weight: bold !important;
+                font-size: 16px !important; 
                 border-right: 2px solid #aaaaaa !important;
                 padding: 4px 8px !important;
                 overflow: visible !important;
@@ -610,13 +613,14 @@ function renderRosterApp() {
                 border-radius: 6px !important; 
                 box-shadow: none !important; 
                 margin: 2px !important;
-                padding: 4px 6px !important;
+                padding: 2px 4px !important; 
                 height: calc(100% - 4px) !important; 
                 display: flex !important;
                 flex-direction: column !important;
                 justify-content: flex-start !important;
                 overflow: hidden !important;
                 box-sizing: border-box !important;
+                font-size: 14px !important;
             }
 
             .camper-block.departed { 
@@ -642,7 +646,7 @@ function renderRosterApp() {
                 background-color: #e5e5e5 !important;
                 color: #000000 !important;
                 border: 2px solid #aaaaaa !important;
-                font-size: 1.1rem !important;
+                font-size: 16px !important;
                 padding: 4px 12px !important;
                 height: 35px !important;
             }
@@ -651,8 +655,8 @@ function renderRosterApp() {
 
             .print-extras {
                 display: block !important;
-                margin-top: 4px !important;
-                font-size: 0.8rem !important;
+                margin-top: 2px !important;
+                font-size: 13px !important;
                 color: #000000 !important;
             }
 
@@ -709,7 +713,7 @@ function renderRosterApp() {
                     <label style="font-weight: bold; font-size: 0.85rem; display: block; margin-bottom: 5px;">Filter by Loop</label>
                     <select id="filter-loop" class="app-select" style="margin-bottom: 0; min-width: 200px;">
                         <option value="All">All Loops</option>
-                        </select>
+                    </select>
                 </div>
             </div>
 
@@ -723,9 +727,9 @@ function renderRosterApp() {
         <div class="app-table-container" style="overflow-x: auto; max-height: 65vh;">
             <table class="gantt-table" id="roster-table">
                 <thead id="roster-thead">
-                    </thead>
+                </thead>
                 <tbody id="roster-tbody">
-                    </tbody>
+                </tbody>
             </table>
         </div>
 
@@ -849,8 +853,14 @@ function renderRosterApp() {
                 </div>
 
                 <div class="responsive-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    
                     <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px; border-radius: var(--radius-md); border: 1px solid var(--border-color); background: rgba(0,0,0,0.02);">
-                        <label style="font-weight: bold; margin: 0;">Extra Vehicles</label>
+                        <div style="display: flex; flex-direction: column; gap: 4px;">
+                            <label style="font-weight: bold; margin: 0; font-size: 0.9rem;">Extra Vehicles</label>
+                            <label style="display:flex; align-items:center; gap:4px; font-size: 0.85rem; cursor:pointer;">
+                                <strong>P</strong> <input type="checkbox" id="cm-ev-paid" style="margin:0; transform:scale(1.2);">
+                            </label>
+                        </div>
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <button type="button" id="btn-ev-minus" class="btn-outline" style="width: 30px; height: 30px; padding: 0; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.2rem;">-</button>
                             <span id="cm-extra-veh-display" style="width: 25px; text-align: center; font-weight: bold; font-size: 1.1rem;">0</span>
@@ -860,7 +870,12 @@ function renderRosterApp() {
                     </div>
 
                     <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px; border-radius: var(--radius-md); border: 1px solid var(--border-color); background: rgba(0,0,0,0.02);">
-                        <label style="font-weight: bold; margin: 0;">ATV / UTV's</label>
+                        <div style="display: flex; flex-direction: column; gap: 4px;">
+                            <label style="font-weight: bold; margin: 0; font-size: 0.9rem;">ATV / UTV's</label>
+                            <label style="display:flex; align-items:center; gap:4px; font-size: 0.85rem; cursor:pointer;">
+                                <strong>P</strong> <input type="checkbox" id="cm-atv-paid" style="margin:0; transform:scale(1.2);">
+                            </label>
+                        </div>
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <button type="button" id="btn-atv-minus" class="btn-outline" style="width: 30px; height: 30px; padding: 0; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.2rem;">-</button>
                             <span id="cm-atv-display" style="width: 25px; text-align: center; font-weight: bold; font-size: 1.1rem;">0</span>
@@ -973,7 +988,7 @@ function renderRosterApp() {
                     </div>
 
                     <div id="sc-bulk-site-list" class="responsive-grid" style="max-height: 250px; overflow-y: auto; border: 1px solid var(--border-color); padding: 10px; border-radius: var(--radius-md); display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; background: rgba(0,0,0,0.02);">
-                        </div>
+                    </div>
 
                     <div class="responsive-grid flex-stack" style="display: flex; gap: 10px; align-items: flex-end;">
                         <div style="flex: 1; width: 100%;">
@@ -994,7 +1009,7 @@ function renderRosterApp() {
                     </div>
                     
                     <div id="lm-loop-list" style="max-height: 350px; overflow-y: auto;">
-                        </div>
+                    </div>
                 </div>
 
             </div>
