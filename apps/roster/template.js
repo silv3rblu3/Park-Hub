@@ -7,7 +7,7 @@ function renderRosterApp() {
         .app-table-container {
             overflow-x: auto;
             overflow-y: auto;
-            max-height: 65vh;
+            max-height: 75vh;
             -webkit-overflow-scrolling: touch; 
             position: relative;
         }
@@ -428,8 +428,8 @@ function renderRosterApp() {
             /* Mobile Date Columns */
             .gantt-table th:not(.gantt-site-col),
             .gantt-table td:not(.gantt-site-col) { 
-                width: 300px !important; 
-                min-width: 300px !important; /* THE PHONE SWEET SPOT */
+                width: 200px !important; 
+                min-width: 200px !important; /* THE PHONE SWEET SPOT */
                 max-width: none !important; 
             }
             
@@ -696,7 +696,7 @@ function renderRosterApp() {
         }
     </style>
 
-    <div id="roster-app-wrapper" style="padding: 2rem;">
+    <div id="roster-app-wrapper" style="padding: 0.5rem;">
         <div id="roster-header" class="responsive-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h2>Camp Roster Calendar</h2>
             <div class="header-btns" style="display: flex; gap: 10px;">
