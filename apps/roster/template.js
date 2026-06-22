@@ -7,7 +7,7 @@ function renderRosterApp() {
         .app-table-container {
             overflow-x: auto;
             overflow-y: auto;
-            max-height: 75vh;
+            max-height: 85vh;
             -webkit-overflow-scrolling: touch; 
             position: relative;
         }
