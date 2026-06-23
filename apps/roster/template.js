@@ -7,7 +7,7 @@ function renderRosterApp() {
         .app-table-container {
             overflow-x: auto;
             overflow-y: auto;
-            max-height: 85vh;
+            max-height: 95vh;
             -webkit-overflow-scrolling: touch; 
             position: relative;
         }
@@ -383,7 +383,7 @@ function renderRosterApp() {
         /* 📱 MOBILE RESPONSIVE STYLES */
         @media screen and (max-width: 768px) {
             #roster-app-wrapper {
-                padding: 10px !important;
+                padding: 5px !important;
             }
 
             .responsive-header {
@@ -428,8 +428,8 @@ function renderRosterApp() {
             /* Mobile Date Columns */
             .gantt-table th:not(.gantt-site-col),
             .gantt-table td:not(.gantt-site-col) { 
-                width: 150px !important; 
-                min-width: 150px !important; /* THE PHONE SWEET SPOT */
+                width: 180px !important; 
+                min-width: 180px !important; /* THE PHONE SWEET SPOT */
                 max-width: none !important; 
             }
             
