@@ -294,7 +294,7 @@ function processSyncManifest() {
         for (let i = roster.active.length - 1; i >= 0; i--) {
             let localCamper = roster.active[i];
             
-            if (localCamper.id.startsWith('WALKIN-')) continue;
+            const isWalkIn = localCamper.id.startsWith('WALKIN-');
 
             if (!incomingSites.has(localCamper.site)) {
                 continue; 
@@ -308,6 +308,21 @@ function processSyncManifest() {
 
             if (L_s < syncMaxTime && L_e > syncMinTime) {
                 
+                // --- WALK-IN OVERWRITE LOGIC ---
+                if (isWalkIn) {
+                    const incomingOverlap = incomingData.find(inc => {
+                        if (inc.site !== localCamper.site) return false;
+                        const incParsed = parseRosterDates(inc.dates);
+                        return (incParsed.start.getTime() < L_e && incParsed.end.getTime() > L_s);
+                    });
+
+                    // If a real imported reservation overlaps this walk-in, delete the walk-in to make room
+                    if (incomingOverlap) {
+                        roster.active.splice(i, 1);
+                    }
+                    continue; // Protect walk-ins that DO NOT have an overlap from being purged
+                }
+
                 const exactMatch = incomingData.find(inc => {
                     let incUID = inc.id + '-' + inc.site.replace(/\s/g, '') + '-' + inc.dates.replace(/\s/g, '');
                     return incUID === localCamper.uid;
@@ -414,6 +429,7 @@ function populateLoopFilter() {
     }
 }
 
+// --- UPDATED DATE PARSER: FIXED THE MISSING BOXES ---
 function parseRosterDates(dateStr) {
     if (!dateStr || typeof dateStr !== 'string' || !dateStr.trim() || dateStr === "Unknown Dates") {
         return { start: new Date(0), end: new Date(0) };
@@ -469,6 +485,8 @@ function parseRosterDates(dateStr) {
     start.setHours(0, 0, 0, 0);
     end.setHours(0, 0, 0, 0);
 
+    // RESTORED FIX: The visual grid math REQUIRES the internal end date to be padded 
+    // by exactly one day, or everything shrinks by 1 column on your screen.
     if (start.getTime() > 0) {
         end.setDate(end.getDate() + 1);
     }
@@ -605,10 +623,9 @@ function renderRosterCalendar() {
                 let hasNote = (camper.notes && camper.notes.trim() !== '');
                 let noteClass = hasNote ? 'note-telltale has-note' : 'note-telltale no-note';
 
-                // --- NEW: Inline Controls for the Calendar View ---
+                // --- Inline Controls for the Calendar View ---
                 let extrasHtml = `<span class="screen-extras" style="display: inline-flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 3px; margin-left: 5px;">`;
                 
-                // Add Vehicle button + Paid Checkbox
                 let evChecked = camper.evPaid ? 'checked' : '';
                 extrasHtml += `
                     <div style="display: flex; align-items: center; gap: 4px;">
@@ -620,7 +637,6 @@ function renderRosterCalendar() {
                     </div>
                 `;
 
-                // If they have an ATV, expand the inline box to show it
                 if (camper.atvCount && camper.atvCount > 0) {
                     let atvChecked = camper.atvPaid ? 'checked' : '';
                     extrasHtml += `<div style="border-left: 1px solid rgba(255,255,255,0.3); height: 14px; margin: 0 2px;"></div>`;
@@ -635,7 +651,7 @@ function renderRosterCalendar() {
                 }
                 extrasHtml += `</span>`;
 
-               // --- NEW: Cleaned up Print View without the 'P' ---
+                // --- Cleaned up Print View without the 'P' ---
                 let pVeh = camper.extraVehicles && camper.extraVehicles > 0 ? camper.extraVehicles : '___';
                 let pAtv = camper.atvCount && camper.atvCount > 0 ? camper.atvCount : '___';
                 
@@ -712,7 +728,6 @@ function attachGridInteractions() {
         });
     });
 
-    // --- NEW: Inline Control Event Listeners ---
     document.querySelectorAll('.inline-add-ev').forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -728,7 +743,7 @@ function attachGridInteractions() {
     });
 
     document.querySelectorAll('.inline-paid-ev, .inline-paid-atv').forEach(cb => {
-        cb.addEventListener('click', e => e.stopPropagation()); // Stop modal from opening
+        cb.addEventListener('click', e => e.stopPropagation()); 
         cb.addEventListener('change', (e) => {
             e.stopPropagation();
             const uid = e.target.getAttribute('data-uid');
@@ -1000,12 +1015,14 @@ function bindRosterEvents() {
         }
 
         let departureDate = new Date(arrivalDate);
-        departureDate.setDate(departureDate.getDate() + nights);
+        // THE FIX: For 1 night, add 0 days to the string. For 2 nights, add 1 day, etc.
+        departureDate.setDate(departureDate.getDate() + (nights - 1));
 
         const arrStr = `${String(arrivalDate.getMonth()+1).padStart(2,'0')}/${String(arrivalDate.getDate()).padStart(2,'0')}/${String(arrivalDate.getFullYear()).slice(-2)}`;
         const depStr = `${String(departureDate.getMonth()+1).padStart(2,'0')}/${String(departureDate.getDate()).padStart(2,'0')}/${String(departureDate.getFullYear()).slice(-2)}`;
         
-        let dateStringForApp = `${arrStr} - ${depStr}`;
+        // THE FIX: If it's exactly 1 night, ONLY output the arrival date. No dashes.
+        let dateStringForApp = nights === 1 ? arrStr : `${arrStr} - ${depStr}`;
 
         let state = StateManager.loadGlobalState();
         let loop = "Unassigned";
