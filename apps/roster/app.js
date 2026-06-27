@@ -233,6 +233,7 @@ function runLifecycleManager() {
     StateManager.saveGlobalState(state);
 }
 
+// --- COMPLETELY REWRITTEN SYNC LOGIC ---
 function processSyncManifest() {
     let state = StateManager.loadGlobalState();
     
@@ -290,10 +291,12 @@ function processSyncManifest() {
         camper.uid = camper.id + '-' + camper.site.replace(/\s/g, '') + '-' + dateStr.replace(/\s/g, '');
     };
 
+    // Keep track of which incoming records have been merged so we don't duplicate them
+    let claimedIncomingIds = new Set();
+
     if (syncMinTime !== null && syncMaxTime !== null) {
         for (let i = roster.active.length - 1; i >= 0; i--) {
             let localCamper = roster.active[i];
-            
             const isWalkIn = localCamper.id.startsWith('WALKIN-');
 
             if (!incomingSites.has(localCamper.site)) {
@@ -308,7 +311,6 @@ function processSyncManifest() {
 
             if (L_s < syncMaxTime && L_e > syncMinTime) {
                 
-                // --- WALK-IN OVERWRITE LOGIC ---
                 if (isWalkIn) {
                     const incomingOverlap = incomingData.find(inc => {
                         if (inc.site !== localCamper.site) return false;
@@ -316,55 +318,61 @@ function processSyncManifest() {
                         return (incParsed.start.getTime() < L_e && incParsed.end.getTime() > L_s);
                     });
 
-                    // If a real imported reservation overlaps this walk-in, delete the walk-in to make room
                     if (incomingOverlap) {
                         roster.active.splice(i, 1);
                     }
-                    continue; // Protect walk-ins that DO NOT have an overlap from being purged
+                    continue; 
                 }
 
-                const exactMatch = incomingData.find(inc => {
-                    let incUID = inc.id + '-' + inc.site.replace(/\s/g, '') + '-' + inc.dates.replace(/\s/g, '');
-                    return incUID === localCamper.uid;
+                // THE FIX: Bulletproof merging logic.
+                const matchedIncoming = incomingData.find(inc => {
+                    // Skip if another local record already claimed this incoming record
+                    if (claimedIncomingIds.has(inc.id)) return false;
+
+                    // 1. Primary Match: The ID is an exact match (Handles date shifts if ID remains the same)
+                    if (inc.id === localCamper.id) return true;
+
+                    // 2. Fallback Match: ID changed, but the Site and Name are exactly the same
+                    // (Handles date shifts/modifications if the booking system generated a new ID)
+                    if (inc.site === localCamper.site && (inc.name || '').trim().toLowerCase() === (localCamper.name || '').trim().toLowerCase()) return true;
+
+                    // If neither the ID nor the Name match, it's a different person. Do not merge.
+                    return false;
                 });
 
-                if (!exactMatch) {
-                    const stillHasBookingHere = incomingData.find(inc => inc.id === localCamper.id && inc.site === localCamper.site);
+                if (matchedIncoming) {
+                    // Match found! Claim it so it doesn't get used twice.
+                    claimedIncomingIds.add(matchedIncoming.id);
 
-                    if (!stillHasBookingHere) {
-                        if (L_s >= syncMinTime && L_e <= syncMaxTime) {
-                            roster.active.splice(i, 1);
-                        } else if (L_s < syncMinTime && L_e <= syncMaxTime) {
-                            updateCamperDates(localCamper, localParsed.start, new Date(syncMinTime));
-                        } else if (L_s >= syncMinTime && L_e > syncMaxTime) {
-                            updateCamperDates(localCamper, new Date(syncMaxTime), localParsed.end);
-                        } else {
-                            updateCamperDates(localCamper, localParsed.start, new Date(syncMinTime));
-                        }
-                    } else {
-                        roster.active.splice(i, 1);
-                    }
+                    // Update the local record to reflect the new incoming data...
+                    // ... BUT LEAVE THE CHECK-IN STATUS, VEHICLES, AND NOTES ALONE!
+                    localCamper.id = matchedIncoming.id;
+                    localCamper.name = matchedIncoming.name;
+                    localCamper.dates = matchedIncoming.dates;
+                    localCamper.uid = matchedIncoming.id + '-' + matchedIncoming.site.replace(/\s/g, '') + '-' + matchedIncoming.dates.replace(/\s/g, '');
                 } else {
-                    roster.active.splice(i, 1);
+                    // If no match was found, the scraper confirms this booking was cancelled/deleted.
+                    if (L_s >= syncMinTime && L_e <= syncMaxTime) {
+                        roster.active.splice(i, 1);
+                    } else if (L_s < syncMinTime && L_e <= syncMaxTime) {
+                        updateCamperDates(localCamper, localParsed.start, new Date(syncMinTime));
+                    } else if (L_s >= syncMinTime && L_e > syncMaxTime) {
+                        updateCamperDates(localCamper, new Date(syncMaxTime), localParsed.end);
+                    } else {
+                        updateCamperDates(localCamper, localParsed.start, new Date(syncMinTime));
+                    }
                 }
             }
         }
     }
 
+    // Now safely add any incoming records that weren't merged/claimed above
     incomingData.forEach(incoming => {
         if (!incoming.site || !incoming.dates || !incoming.id) return;
 
-        if (!roster.siteConfig[incoming.site]) {
-            roster.siteConfig[incoming.site] = { 
-                loop: 'Unassigned', length: '', amps: 'None', water: false, sewer: false, isADA: incoming.isADA || false, isHost: incoming.isHost || false 
-            };
-        } else {
-            if (incoming.isADA) roster.siteConfig[incoming.site].isADA = true;
-            if (incoming.isHost) roster.siteConfig[incoming.site].isHost = true;
-        }
-
         let incomingUID = incoming.id + '-' + incoming.site.replace(/\s/g, '') + '-' + incoming.dates.replace(/\s/g, '');
 
+        // Because we updated the UIDs of local matches above, this will perfectly skip anything already handled
         const existsActive = roster.active.find(c => c.uid === incomingUID);
         const existsHistory = roster.history.find(c => c.uid === incomingUID);
         const existsArchive = roster.archive.find(c => c.uid === incomingUID);
@@ -429,7 +437,6 @@ function populateLoopFilter() {
     }
 }
 
-// --- UPDATED DATE PARSER: FIXED THE MISSING BOXES ---
 function parseRosterDates(dateStr) {
     if (!dateStr || typeof dateStr !== 'string' || !dateStr.trim() || dateStr === "Unknown Dates") {
         return { start: new Date(0), end: new Date(0) };
@@ -485,8 +492,6 @@ function parseRosterDates(dateStr) {
     start.setHours(0, 0, 0, 0);
     end.setHours(0, 0, 0, 0);
 
-    // RESTORED FIX: The visual grid math REQUIRES the internal end date to be padded 
-    // by exactly one day, or everything shrinks by 1 column on your screen.
     if (start.getTime() > 0) {
         end.setDate(end.getDate() + 1);
     }
@@ -623,7 +628,6 @@ function renderRosterCalendar() {
                 let hasNote = (camper.notes && camper.notes.trim() !== '');
                 let noteClass = hasNote ? 'note-telltale has-note' : 'note-telltale no-note';
 
-                // --- Inline Controls for the Calendar View ---
                 let extrasHtml = `<span class="screen-extras" style="display: inline-flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 3px; margin-left: 5px;">`;
                 
                 let evChecked = camper.evPaid ? 'checked' : '';
@@ -651,7 +655,6 @@ function renderRosterCalendar() {
                 }
                 extrasHtml += `</span>`;
 
-                // --- Cleaned up Print View without the 'P' ---
                 let pVeh = camper.extraVehicles && camper.extraVehicles > 0 ? camper.extraVehicles : '___';
                 let pAtv = camper.atvCount && camper.atvCount > 0 ? camper.atvCount : '___';
                 
@@ -720,7 +723,6 @@ function renderRosterCalendar() {
 function attachGridInteractions() {
     document.querySelectorAll('.camper-block').forEach(block => {
         block.addEventListener('click', (e) => {
-            // Prevent opening modal if they click any inline controls
             if (e.target.closest('.inline-add-ev') || e.target.classList.contains('inline-paid-ev') || e.target.classList.contains('inline-paid-atv') || e.target.classList.contains('status-toggle-btn') || e.target.classList.contains('note-telltale')) {
                 return;
             }
@@ -1015,13 +1017,11 @@ function bindRosterEvents() {
         }
 
         let departureDate = new Date(arrivalDate);
-        // THE FIX: For 1 night, add 0 days to the string. For 2 nights, add 1 day, etc.
         departureDate.setDate(departureDate.getDate() + (nights - 1));
 
         const arrStr = `${String(arrivalDate.getMonth()+1).padStart(2,'0')}/${String(arrivalDate.getDate()).padStart(2,'0')}/${String(arrivalDate.getFullYear()).slice(-2)}`;
         const depStr = `${String(departureDate.getMonth()+1).padStart(2,'0')}/${String(departureDate.getDate()).padStart(2,'0')}/${String(departureDate.getFullYear()).slice(-2)}`;
         
-        // THE FIX: If it's exactly 1 night, ONLY output the arrival date. No dashes.
         let dateStringForApp = nights === 1 ? arrStr : `${arrStr} - ${depStr}`;
 
         let state = StateManager.loadGlobalState();
