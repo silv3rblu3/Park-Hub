@@ -55,27 +55,15 @@ function initRosterLogic() {
 
     const patchUID = (arr) => {
         arr.forEach(c => {
+            // FIX: UID is now strictly tied to Site and Dates, not just the ID.
             const cleanSite = c.site ? c.site.replace(/\s/g, '') : 'UnknownSite';
             const cleanDates = c.dates ? c.dates.replace(/\s/g, '') : 'UnknownDates';
-            
-            if (!c.uid || !c.uid.includes(cleanSite)) {
-                c.uid = c.id + '-' + cleanSite + '-' + cleanDates;
-            }
+            c.uid = c.id + '-' + cleanSite + '-' + cleanDates;
 
-            if (c.extraVehicles === undefined) {
-                c.extraVehicles = 0;
-            }
-
-            if (c.atvCount === undefined) {
-                c.atvCount = 0;
-            }
-            
-            if (c.evPaid === undefined) {
-                c.evPaid = false;
-            }
-            if (c.atvPaid === undefined) {
-                c.atvPaid = false;
-            }
+            if (c.extraVehicles === undefined) c.extraVehicles = 0;
+            if (c.atvCount === undefined) c.atvCount = 0;
+            if (c.evPaid === undefined) c.evPaid = false;
+            if (c.atvPaid === undefined) c.atvPaid = false;
         });
     };
 
@@ -235,184 +223,63 @@ function runLifecycleManager() {
 
 function processSyncManifest() {
     let state = StateManager.loadGlobalState();
-    
-    if (!state.apps.roster.manifest) {
-        return; 
-    }
+    if (!state.apps.roster.manifest) return; 
 
     const incomingData = state.apps.roster.manifest;
     let roster = state.apps.roster;
 
-    const incomingSites = new Set();
+    // Build incoming UIDs based on Site + ID + Dates to isolate group bookings
     incomingData.forEach(inc => {
-        if (inc.site) incomingSites.add(inc.site);
+        inc.uid = inc.id + '-' + inc.site.replace(/\s/g, '') + '-' + inc.dates.replace(/\s/g, '');
     });
 
-    if (state.apps.roster.manifestMeta && state.apps.roster.manifestMeta.sites) {
-        state.apps.roster.manifestMeta.sites.forEach(s => {
-            if (!roster.siteConfig[s.site]) {
-                roster.siteConfig[s.site] = { 
-                    loop: 'Unassigned', length: '', amps: 'None', water: false, sewer: false, 
-                    isADA: s.isADA, isHost: s.isHost 
-                };
-            } else {
-                if (s.isADA) roster.siteConfig[s.site].isADA = true;
-                if (s.isHost) roster.siteConfig[s.site].isHost = true;
-            }
-        });
-    }
+    // 1. Identify which records have been cancelled or removed
+    for (let i = roster.active.length - 1; i >= 0; i--) {
+        let local = roster.active[i];
+        if (local.id.startsWith('WALKIN-')) continue;
 
-    let syncMinTime = null;
-    let syncMaxTime = null;
-
-    if (state.apps.roster.manifestMeta) {
-        const meta = state.apps.roster.manifestMeta;
-        
-        if (meta.viewStart && meta.viewEnd) {
-            const parsedStart = parseRosterDates(meta.viewStart);
-            const parsedEnd = parseRosterDates(meta.viewEnd);
-            
-            if (parsedStart.start.getTime() > 0 && parsedEnd.start.getTime() > 0) {
-                syncMinTime = parsedStart.start.getTime();
-                syncMaxTime = parsedEnd.start.getTime() + (24 * 60 * 60 * 1000);
+        const isStillIncoming = incomingData.find(inc => inc.uid === local.uid);
+        if (!isStillIncoming) {
+            // Check if site is even in the sync file
+            const siteStillInManifest = incomingData.find(inc => inc.site === local.site);
+            if (siteStillInManifest) {
+                roster.active.splice(i, 1);
             }
         }
     }
 
-    const updateCamperDates = (camper, startObj, endObj) => {
-        const formatStr = (d) => `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${String(d.getFullYear()).slice(-2)}`;
-        let newEnd = new Date(endObj);
-        newEnd.setDate(newEnd.getDate() - 1); 
-        
-        let dateStr = startObj.getTime() === newEnd.getTime() ? formatStr(startObj) : `${formatStr(startObj)} - ${formatStr(newEnd)}`;
-        
-        camper.dates = dateStr;
-        camper.uid = camper.id + '-' + camper.site.replace(/\s/g, '') + '-' + dateStr.replace(/\s/g, '');
-    };
-
-    // Tracks matched scraper records so we don't accidentally double-merge
-    let claimedIncomingIds = new Set();
-
-    if (syncMinTime !== null && syncMaxTime !== null) {
-        for (let i = roster.active.length - 1; i >= 0; i--) {
-            let localCamper = roster.active[i];
-            const isWalkIn = localCamper.id.startsWith('WALKIN-');
-
-            if (!incomingSites.has(localCamper.site)) {
-                continue; 
-            }
-
-            const localParsed = parseRosterDates(localCamper.dates);
-            const L_s = localParsed.start.getTime();
-            const L_e = localParsed.end.getTime();
-
-            if (L_s === 0) continue; 
-
-            if (L_s < syncMaxTime && L_e > syncMinTime) {
-                
-                if (isWalkIn) {
-                    const incomingOverlap = incomingData.find(inc => {
-                        if (inc.site !== localCamper.site) return false;
-                        const incParsed = parseRosterDates(inc.dates);
-                        return (incParsed.start.getTime() < L_e && incParsed.end.getTime() > L_s);
-                    });
-
-                    if (incomingOverlap) {
-                        roster.active.splice(i, 1);
-                    }
-                    continue; 
-                }
-
-                // THE FIX: Fuzzy Matching Logic
-                const matchedIncoming = incomingData.find(inc => {
-                    if (claimedIncomingIds.has(inc.id)) return false;
-
-                    // Condition 1: Perfect ID Match
-                    if (inc.id === localCamper.id) return true;
-
-                    // Condition 2: ID changed, but same Site and overlapping dates
-                    if (inc.site === localCamper.site) {
-                        const incParsed = parseRosterDates(inc.dates);
-                        const overlaps = (incParsed.start.getTime() < L_e && incParsed.end.getTime() > L_s);
-                        
-                        if (overlaps) {
-                            const localN = (localCamper.name || '').trim().toLowerCase();
-                            const incN = (inc.name || '').trim().toLowerCase();
-                            
-                            // If names are functionally identical or one contains the other (e.g. "B. Havens" vs "Brent Havens")
-                            if (localN === incN || localN.includes(incN) || incN.includes(localN)) return true;
-                            
-                            // Break names into words and check if they share a major word (e.g. "Chandler" or "Dickinson")
-                            const lWords = localN.split(/\s+/).filter(w => w.length > 2);
-                            const iWords = incN.split(/\s+/).filter(w => w.length > 2);
-                            if (lWords.some(w => iWords.includes(w))) return true;
-                        }
-                    }
-
-                    return false;
-                });
-
-                if (matchedIncoming) {
-                    claimedIncomingIds.add(matchedIncoming.id);
-                    localCamper.id = matchedIncoming.id;
-                    localCamper.name = matchedIncoming.name;
-                    localCamper.dates = matchedIncoming.dates;
-                    localCamper.uid = matchedIncoming.id + '-' + matchedIncoming.site.replace(/\s/g, '') + '-' + matchedIncoming.dates.replace(/\s/g, '');
-                } else {
-                    // THE FIX: Destroy the clipping code completely. 
-                    // Only delete the reservation if it is entirely swallowed by the sync window. 
-                    // If it hangs out the sides, leave it alone to prevent fragmenting.
-                    if (L_s >= syncMinTime && L_e <= syncMaxTime) {
-                        roster.active.splice(i, 1);
-                    }
-                }
-            }
-        }
-    }
-
+    // 2. Add or Update records
     incomingData.forEach(incoming => {
         if (!incoming.site || !incoming.dates || !incoming.id) return;
 
+        // Ensure config exists
         if (!roster.siteConfig[incoming.site]) {
-            roster.siteConfig[incoming.site] = { 
-                loop: 'Unassigned', length: '', amps: 'None', water: false, sewer: false, isADA: incoming.isADA || false, isHost: incoming.isHost || false 
-            };
+            roster.siteConfig[incoming.site] = { loop: 'Unassigned', length: '', amps: 'None', water: false, sewer: false, isADA: incoming.isADA || false, isHost: incoming.isHost || false };
+        }
+
+        const existing = roster.active.find(c => c.uid === incoming.uid);
+
+        if (existing) {
+            // KEEP EVERYTHING WE CARED ABOUT
+            existing.name = incoming.name;
         } else {
-            if (incoming.isADA) roster.siteConfig[incoming.site].isADA = true;
-            if (incoming.isHost) roster.siteConfig[incoming.site].isHost = true;
+            let initStatus = incoming.id.startsWith('BLOCKED-') ? 'Closed' : 'Pending';
+            roster.active.push({
+                uid: incoming.uid,
+                id: incoming.id,
+                name: incoming.name,
+                site: incoming.site,
+                dates: incoming.dates,
+                status: initStatus,
+                extraVehicles: 0,
+                atvCount: 0,
+                evPaid: false,
+                atvPaid: false,
+                isTrouble: false,
+                isArchived: false,
+                notes: ''
+            });
         }
-
-        let incomingUID = incoming.id + '-' + incoming.site.replace(/\s/g, '') + '-' + incoming.dates.replace(/\s/g, '');
-
-        const existsActive = roster.active.find(c => c.uid === incomingUID);
-        const existsHistory = roster.history.find(c => c.uid === incomingUID);
-        const existsArchive = roster.archive.find(c => c.uid === incomingUID);
-
-        if (existsActive || existsHistory || existsArchive) return; 
-
-        let initStatus = 'Pending';
-        const isIncomingBlock = incoming.id.startsWith('BLOCKED-');
-
-        if (isIncomingBlock) {
-            initStatus = 'Closed';
-            incoming.name = 'Maintenance / Closed';
-        }
-
-        roster.active.push({
-            uid: incomingUID,
-            id: incoming.id,
-            name: incoming.name,
-            site: incoming.site,
-            dates: incoming.dates,
-            status: initStatus,
-            extraVehicles: 0,
-            atvCount: 0,
-            evPaid: false,  
-            atvPaid: false, 
-            isTrouble: false,
-            isArchived: false,
-            notes: ''
-        });
     });
 
     delete roster.manifest;
