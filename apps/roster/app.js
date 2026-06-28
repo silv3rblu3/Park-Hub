@@ -233,7 +233,6 @@ function runLifecycleManager() {
     StateManager.saveGlobalState(state);
 }
 
-// --- COMPLETELY REWRITTEN SYNC LOGIC ---
 function processSyncManifest() {
     let state = StateManager.loadGlobalState();
     
@@ -291,7 +290,7 @@ function processSyncManifest() {
         camper.uid = camper.id + '-' + camper.site.replace(/\s/g, '') + '-' + dateStr.replace(/\s/g, '');
     };
 
-    // Keep track of which incoming records have been merged so we don't duplicate them
+    // Tracks matched scraper records so we don't accidentally double-merge
     let claimedIncomingIds = new Set();
 
     if (syncMinTime !== null && syncMaxTime !== null) {
@@ -324,55 +323,67 @@ function processSyncManifest() {
                     continue; 
                 }
 
-                // THE FIX: Bulletproof merging logic.
+                // THE FIX: Fuzzy Matching Logic
                 const matchedIncoming = incomingData.find(inc => {
-                    // Skip if another local record already claimed this incoming record
                     if (claimedIncomingIds.has(inc.id)) return false;
 
-                    // 1. Primary Match: The ID is an exact match (Handles date shifts if ID remains the same)
+                    // Condition 1: Perfect ID Match
                     if (inc.id === localCamper.id) return true;
 
-                    // 2. Fallback Match: ID changed, but the Site and Name are exactly the same
-                    // (Handles date shifts/modifications if the booking system generated a new ID)
-                    if (inc.site === localCamper.site && (inc.name || '').trim().toLowerCase() === (localCamper.name || '').trim().toLowerCase()) return true;
+                    // Condition 2: ID changed, but same Site and overlapping dates
+                    if (inc.site === localCamper.site) {
+                        const incParsed = parseRosterDates(inc.dates);
+                        const overlaps = (incParsed.start.getTime() < L_e && incParsed.end.getTime() > L_s);
+                        
+                        if (overlaps) {
+                            const localN = (localCamper.name || '').trim().toLowerCase();
+                            const incN = (inc.name || '').trim().toLowerCase();
+                            
+                            // If names are functionally identical or one contains the other (e.g. "B. Havens" vs "Brent Havens")
+                            if (localN === incN || localN.includes(incN) || incN.includes(localN)) return true;
+                            
+                            // Break names into words and check if they share a major word (e.g. "Chandler" or "Dickinson")
+                            const lWords = localN.split(/\s+/).filter(w => w.length > 2);
+                            const iWords = incN.split(/\s+/).filter(w => w.length > 2);
+                            if (lWords.some(w => iWords.includes(w))) return true;
+                        }
+                    }
 
-                    // If neither the ID nor the Name match, it's a different person. Do not merge.
                     return false;
                 });
 
                 if (matchedIncoming) {
-                    // Match found! Claim it so it doesn't get used twice.
                     claimedIncomingIds.add(matchedIncoming.id);
-
-                    // Update the local record to reflect the new incoming data...
-                    // ... BUT LEAVE THE CHECK-IN STATUS, VEHICLES, AND NOTES ALONE!
                     localCamper.id = matchedIncoming.id;
                     localCamper.name = matchedIncoming.name;
                     localCamper.dates = matchedIncoming.dates;
                     localCamper.uid = matchedIncoming.id + '-' + matchedIncoming.site.replace(/\s/g, '') + '-' + matchedIncoming.dates.replace(/\s/g, '');
                 } else {
-                    // If no match was found, the scraper confirms this booking was cancelled/deleted.
+                    // THE FIX: Destroy the clipping code completely. 
+                    // Only delete the reservation if it is entirely swallowed by the sync window. 
+                    // If it hangs out the sides, leave it alone to prevent fragmenting.
                     if (L_s >= syncMinTime && L_e <= syncMaxTime) {
                         roster.active.splice(i, 1);
-                    } else if (L_s < syncMinTime && L_e <= syncMaxTime) {
-                        updateCamperDates(localCamper, localParsed.start, new Date(syncMinTime));
-                    } else if (L_s >= syncMinTime && L_e > syncMaxTime) {
-                        updateCamperDates(localCamper, new Date(syncMaxTime), localParsed.end);
-                    } else {
-                        updateCamperDates(localCamper, localParsed.start, new Date(syncMinTime));
                     }
                 }
             }
         }
     }
 
-    // Now safely add any incoming records that weren't merged/claimed above
     incomingData.forEach(incoming => {
         if (!incoming.site || !incoming.dates || !incoming.id) return;
 
+        if (!roster.siteConfig[incoming.site]) {
+            roster.siteConfig[incoming.site] = { 
+                loop: 'Unassigned', length: '', amps: 'None', water: false, sewer: false, isADA: incoming.isADA || false, isHost: incoming.isHost || false 
+            };
+        } else {
+            if (incoming.isADA) roster.siteConfig[incoming.site].isADA = true;
+            if (incoming.isHost) roster.siteConfig[incoming.site].isHost = true;
+        }
+
         let incomingUID = incoming.id + '-' + incoming.site.replace(/\s/g, '') + '-' + incoming.dates.replace(/\s/g, '');
 
-        // Because we updated the UIDs of local matches above, this will perfectly skip anything already handled
         const existsActive = roster.active.find(c => c.uid === incomingUID);
         const existsHistory = roster.history.find(c => c.uid === incomingUID);
         const existsArchive = roster.archive.find(c => c.uid === incomingUID);
